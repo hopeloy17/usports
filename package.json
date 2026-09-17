@@ -1,0 +1,15 @@
+{
+  "name": "usports",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "docs",
+    "supabase"
+  ],
+  "scripts": {
+    "client": "npm start --prefix client",
+    "test:client": "npm test --prefix client",
+    "server": "npm start --prefix server"
+  }
+}
