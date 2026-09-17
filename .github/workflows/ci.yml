@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - run: npm --prefix server ci
+      - run: npm --prefix client ci
+      - run: npm run test:unit
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - run: npm --prefix server ci
+      - run: npm --prefix client ci
+
+      - name: Start Supabase local stack
+        run: supabase start
+
+      - run: npm run test:integration
+
+  browser:
+    name: Browser E2E tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - run: npm --prefix server ci
+      - run: npm --prefix client ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: client
+
+      - name: Start Supabase local stack
+        run: supabase start
+
+      - run: npm --prefix client run test:browser
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: client/test-results/
+          retention-days: 7
