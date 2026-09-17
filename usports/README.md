@@ -1,1 +1,0 @@
-USports is for college students who want to find people to play with, but don't have time for intramurals. The app allows students to safely host and join games on campus, while avoiding the need for paid apps or group chats where invites often go unanswered
