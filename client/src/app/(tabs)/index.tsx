@@ -1,6 +1,7 @@
 import { Link } from "expo-router";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEvents } from "../../context/EventContext";
+import {formatEventTime} from "../../utils/formatEventTime";
 
 export default function EventFeedScreen() {
   const { events } = useEvents(); // Hooking into shared state!
@@ -22,7 +23,7 @@ export default function EventFeedScreen() {
               </View>
 
               <Text style={styles.detailText}>📍 {item.venue}</Text>
-              <Text style={styles.detailText}>🕒 {item.time}</Text>
+              <Text style={styles.detailText}>🕒 {formatEventTime(item.dateTime)}</Text>
 
               <View style={styles.footer}>
                 <Text style={styles.headcountText}>

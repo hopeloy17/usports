@@ -28,3 +28,32 @@ describe("EventContext", () => {
     expect(updatedEvent.roster).toContain("You");
   });
 });
+
+it("creates a new event with the host auto-jojned", async () => {
+  const wrapper = ({children}: {children: React.ReactNode}) => (<EventProvider>{children}</EventProvider>);
+
+  const {result} = await renderHook(() => useEvents(), {wrapper});
+  const initialCount = result.current.events.length;
+
+  await act(async() => {
+    result.current.createEvent({
+      sport: "Volleyball",
+      venue: "Van Noord Arena",
+      dateTime: "2026-09-30T18:00:00",
+      minPlayers:8,
+      skillLevel: "Amateur",
+      host: "Taylor R.",
+    });
+  });
+
+  const events = result.current.events;
+  const newEvent = events[events.length - 1];
+
+  expect(events.length).toBe(initialCount + 1);
+  expect(newEvent.sport).toBe("Volleyball");
+  expect(newEvent.host).toBe("Taylor R.");
+  expect(newEvent.joinedCount).toBe(1);
+  expect(newEvent.roster).toEqual(['Taylor R.']);
+  expect(newEvent.isJoinedByMe).toBe(true);
+  expect(newEvent.id).toBeTruthy();
+});

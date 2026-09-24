@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useEvents } from "../../context/EventContext";
+import {formatEventTime} from "../../utils/formatEventTime";
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,7 +22,7 @@ export default function EventDetailsScreen() {
         <Text style={styles.title}>
           {event.sport} at {event.venue}
         </Text>
-        <Text style={styles.subtitle}>🕒 {event.time}</Text>
+        <Text style={styles.subtitle}>🕒 {formatEventTime(item.dateTime)}</Text>
         <Text style={styles.skillBadge}>{event.skillLevel}</Text>
       </View>
 

@@ -5,7 +5,7 @@ export type Event = {
   id: string;
   sport: string;
   venue: string;
-  time: string;
+  dateTime: string;
   joinedCount: number;
   minPlayers: number;
   skillLevel: string;
@@ -28,7 +28,7 @@ const initialEvents: Event[] = [
     id: "1",
     sport: "Basketball",
     venue: "Spoelhof Fieldhouse",
-    time: "Tonight @ 7:00 PM",
+    dateTime: "Tonight @ 7:00 PM",
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
@@ -47,7 +47,7 @@ const initialEvents: Event[] = [
     id: "2",
     sport: "Soccer",
     venue: "Gainey Athletic Complex",
-    time: "Tomorrow @ 5:30 PM",
+    dateTime: "Tomorrow @ 5:30 PM",
     joinedCount: 2,
     minPlayers: 14,
     skillLevel: "All Levels",
@@ -95,4 +95,16 @@ export function useEvents() {
   if (!context)
     throw new Error("useEvents must be used within an EventProvider");
   return context;
+}
+
+type NewEventInput = {
+  sport: string;
+  venue: string;
+  dateTime: string;
+  minPlayers: number;
+  // joinedCount: number;
+  skillLevel: string;
+  host: string;
+  // roster: string[];
+  // isJoinedByMe: boolean;
 }
