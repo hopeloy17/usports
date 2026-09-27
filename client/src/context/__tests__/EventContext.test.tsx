@@ -49,6 +49,7 @@ it("creates a new event with the host auto-jojned", async () => {
   const events = result.current.events;
   const newEvent = events[events.length - 1];
 
+  expect(newEvent.name).toBe("Taylor R.'s Volleyball Game");
   expect(events.length).toBe(initialCount + 1);
   expect(newEvent.sport).toBe("Volleyball");
   expect(newEvent.host).toBe("Taylor R.");
