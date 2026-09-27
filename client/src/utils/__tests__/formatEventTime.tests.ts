@@ -5,12 +5,12 @@ import { toHaveDisplayValue } from "@testing-library/react-native/matchers";
 
 // tests for diffent callender dates; toHaveDisplayValue, tomorrow and any day further out
 describe("formateventDateTime", () => {
-    it("formats a same-day event as 'Tonight @ ...'", () => {
+    it("formats a same-day event as 'Today @ ...'", () => {
         const today = new Date();
         today.setHours(19, 0, 0, 0); // 7:00pm
         const iso = today.toISOString();
 
-        expect(formatEventDateTime(iso)).toBe("Tonight @ 7:00 PM");
+        expect(formatEventDateTime(iso)).toBe("Today @ 7:00 PM");
     });
 
     it("formats a same-day event as 'Tomorrow @ ...'", () => {

@@ -8,11 +8,13 @@ export type Event = {
   dateTime: string;
   joinedCount: number;
   minPlayers: number;
-  skillLevel: string;
+  skillLevel: skLevel;
   host: string;
   roster: string[];
   isJoinedByMe: boolean; // Tracks if the current user joined
 };
+
+export type skLevel = "Amateur" | "Intermediate" | "Pro" | "World Class" | "All Levels"; //skLevel is skill level
 
 type EventContextType = {
   events: Event[];
@@ -22,13 +24,19 @@ type EventContextType = {
 // Create the Context
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
+const today = new Date();
+today.setHours(19, 0, 0, 0);
+
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() +1);
+tomorrow.setHours(17, 30, 0, 0);
 // Initial mock data mapped to Calvin venues
 const initialEvents: Event[] = [
   {
     id: "1",
     sport: "Basketball",
     venue: "Spoelhof Fieldhouse",
-    dateTime: "Tonight @ 7:00 PM",
+    dateTime: today.toISOString(),
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
@@ -47,7 +55,7 @@ const initialEvents: Event[] = [
     id: "2",
     sport: "Soccer",
     venue: "Gainey Athletic Complex",
-    dateTime: "Tomorrow @ 5:30 PM",
+    dateTime: tomorrow.toISOString(),
     joinedCount: 2,
     minPlayers: 14,
     skillLevel: "All Levels",
@@ -103,7 +111,7 @@ type NewEventInput = {
   dateTime: string;
   minPlayers: number;
   // joinedCount: number;
-  skillLevel: string;
+  skillLevel: skLevel;
   host: string;
   // roster: string[];
   // isJoinedByMe: boolean;
