@@ -14,14 +14,17 @@ export type Event = {
   isJoinedByMe: boolean; // Tracks if the current user joined
 };
 
-export type skLevel = "Amateur" | "Intermediate" | "Pro" | "World Class" | "All Levels"; //skLevel is skill level
+//options for skill level selection
+export type skLevel = "Amateur" | "Intermediate" | "Pro" | "World Class" | "All Levels";
 
+// Defines what the EventContext can provide
 type EventContextType = {
   events: Event[];
   toggleJoin: (id: string) => void;
+  createEvent: (input: NewEventInput) => void
 };
 
-// Create the Context
+// Creates the required Context
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 const today = new Date();
@@ -65,6 +68,7 @@ const initialEvents: Event[] = [
   },
 ];
 
+// Fills the context box with the events and functions that components need
 export function EventProvider({ children }: { children: React.ReactNode }) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
 
@@ -90,8 +94,19 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const createEvent = (input: NewEventInput) => {
+    const newEvent: Event = {
+      ...input,
+      id: Date.now().toString(),
+      joinedCount: 1,
+      roster: [input.host],
+      isJoinedByMe: true,
+    };
+    setEvents((prevEvents) => [...prevEvents, newEvent]);
+  };
+
   return (
-    <EventContext.Provider value={{ events, toggleJoin }}>
+    <EventContext.Provider value={{ events, toggleJoin, createEvent }}>
       {children}
     </EventContext.Provider>
   );
