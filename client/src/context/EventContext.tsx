@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
+import { SKILL_LEVELS, SkillLevel } from "./ProfileContext";
 
 // Define the shape of our Event data
 export type Event = {
@@ -9,14 +10,12 @@ export type Event = {
   dateTime: string;
   joinedCount: number;
   minPlayers: number;
-  skillLevel: skLevel;
+  skillLevel: SkillLevel;
   host: string;
   roster: string[];
   isJoinedByMe: boolean; // Tracks if the current user joined
 };
 
-//options for skill level selection
-export type skLevel = "Amateur" | "Intermediate" | "Pro" | "World Class" | "All Levels";
 
 // Defines what the EventContext can provide
 type EventContextType = {
@@ -64,7 +63,7 @@ const initialEvents: Event[] = [
     dateTime: tomorrow.toISOString(),
     joinedCount: 2,
     minPlayers: 14,
-    skillLevel: "All Levels",
+    skillLevel: "Beginner",
     host: "Alex B.",
     roster: ["Alex B.", "Gary L."],
     isJoinedByMe: false,
@@ -131,7 +130,7 @@ type NewEventInput = {
   dateTime: string;
   minPlayers: number;
   // joinedCount: number;
-  skillLevel: skLevel;
+  skillLevel: SkillLevel;
   host: string;
   // roster: string[];
   // isJoinedByMe: boolean;

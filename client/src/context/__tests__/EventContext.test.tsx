@@ -41,7 +41,7 @@ it("creates a new event with the host auto-jojned", async () => {
       venue: "Van Noord Arena",
       dateTime: "2026-09-30T18:00:00",
       minPlayers:8,
-      skillLevel: "Amateur",
+      skillLevel: "Beginner",
       host: "Taylor R.",
     });
   });
