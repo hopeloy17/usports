@@ -2,6 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Event } from "../context/EventContext";
 import { colors, commonStyles } from "../styles/common";
+import { formatEventDateTime } from "../utils/formatEventTime";
 
 type GameCardProps = {
   game: Event;
@@ -19,7 +20,7 @@ export default function GameCard({ game, onPress }: GameCardProps) {
         </View>
 
         <Text style={[commonStyles.detailText, styles.detailText]}>📍 {game.venue}</Text>
-        <Text style={[commonStyles.detailText, styles.detailText]}>🕒 {game.time}</Text>
+        <Text style={[commonStyles.detailText, styles.detailText]}>🕒 {formatEventDateTime(game.dateTime)}</Text>
 
         <View style={styles.footer}>
           <Text style={commonStyles.headcountText}>

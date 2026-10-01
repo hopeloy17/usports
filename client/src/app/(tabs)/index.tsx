@@ -1,5 +1,4 @@
-import { Link } from "expo-router";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useEvents } from "../../context/EventContext";
 import GameCard from "../../components/GameCard";
 import { commonStyles } from "../../styles/common";

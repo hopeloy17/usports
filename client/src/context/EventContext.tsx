@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
+import { SKILL_LEVELS, SkillLevel } from "./ProfileContext";
 
 // Define the shape of our Event data
 export type Event = {
@@ -6,23 +7,32 @@ export type Event = {
   name: string;
   sport: string;
   venue: string;
-  time: string;
+  dateTime: string;
   joinedCount: number;
   minPlayers: number;
-  skillLevel: string;
+  skillLevel: SkillLevel;
   host: string;
   roster: string[];
   isJoinedByMe: boolean; // Tracks if the current user joined
 };
 
+
+// Defines what the EventContext can provide
 type EventContextType = {
   events: Event[];
   toggleJoin: (id: string) => void;
+  createEvent: (input: NewEventInput) => void
 };
 
-// Create the Context
+// Creates the required Context
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
+const today = new Date();
+today.setHours(19, 0, 0, 0);
+
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() +1);
+tomorrow.setHours(17, 30, 0, 0);
 // Initial mock data mapped to Calvin venues
 const initialEvents: Event[] = [
   {
@@ -30,7 +40,7 @@ const initialEvents: Event[] = [
     name: "John D.'s Basketball Game",
     sport: "Basketball",
     venue: "Spoelhof Fieldhouse",
-    time: "Tonight @ 7:00 PM",
+    dateTime: today.toISOString(),
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
@@ -50,16 +60,17 @@ const initialEvents: Event[] = [
     name: "Alex B.'s Soccer Game",
     sport: "Soccer",
     venue: "Gainey Athletic Complex",
-    time: "Tomorrow @ 5:30 PM",
+    dateTime: tomorrow.toISOString(),
     joinedCount: 2,
     minPlayers: 14,
-    skillLevel: "All Levels",
+    skillLevel: "Beginner",
     host: "Alex B.",
     roster: ["Alex B.", "Gary L."],
     isJoinedByMe: false,
   },
 ];
 
+// Fills the context box with the events and functions that components need
 export function EventProvider({ children }: { children: React.ReactNode }) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
 
@@ -85,8 +96,20 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const createEvent = (input: NewEventInput) => {
+    const newEvent: Event = {
+      ...input,
+      name: `${input.host}'s ${input.sport} Game`,
+      id: Date.now().toString(),
+      joinedCount: 1,
+      roster: [input.host],
+      isJoinedByMe: true,
+    };
+    setEvents((prevEvents) => [...prevEvents, newEvent]);
+  };
+
   return (
-    <EventContext.Provider value={{ events, toggleJoin }}>
+    <EventContext.Provider value={{ events, toggleJoin, createEvent }}>
       {children}
     </EventContext.Provider>
   );
@@ -98,4 +121,17 @@ export function useEvents() {
   if (!context)
     throw new Error("useEvents must be used within an EventProvider");
   return context;
+}
+
+type NewEventInput = {
+  // name: string;
+  sport: string;
+  venue: string;
+  dateTime: string;
+  minPlayers: number;
+  // joinedCount: number;
+  skillLevel: SkillLevel;
+  host: string;
+  // roster: string[];
+  // isJoinedByMe: boolean;
 }

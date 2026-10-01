@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useEvents } from "../../context/EventContext";
+import { formatEventDateTime } from "../../utils/formatEventTime";
 import { colors, commonStyles } from "../../styles/common";
 
 export default function EventDetailsScreen() {
@@ -21,7 +22,7 @@ export default function EventDetailsScreen() {
       <View style={[commonStyles.card, styles.headerCard]}>
         <Text style={styles.title}>{event.name}</Text>
         <Text style={styles.subtitle}>📍 {event.venue}</Text>
-        <Text style={styles.subtitle}>🕒 {event.time}</Text>
+        <Text style={styles.subtitle}>🕒 {formatEventDateTime(event.dateTime)}</Text>
         <Text style={[commonStyles.skillBadge, styles.skillBadge]}>{event.skillLevel}</Text>
       </View>
 
