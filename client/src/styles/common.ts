@@ -11,6 +11,8 @@ export const colors = {
   textSecondary: "#495057",
   textMuted: "#6C757D",
   danger: "#DC3545",
+  glassTint: "rgba(0, 86, 179, 0.18)",        // <- here
+  surfaceTranslucent: "rgba(255, 255, 255, 0.6)",
 };
 
 // Styles used on more than one screen/component.

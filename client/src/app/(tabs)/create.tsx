@@ -9,6 +9,7 @@ import {
   useProfile,
 } from "../../context/ProfileContext";
 import { colors, commonStyles } from "../../styles/common";
+import { Platform } from "react-native";
 
 // Selectable options for the form's dropdowns and buttons
 const SPORTS = [
@@ -62,6 +63,7 @@ export default function CreateScreen() {
   const [meridiem, setMeridiem] = useState("PM");
   const [minPlayers, setMinPlayers] = useState(10);
   const [skillLevel, setSkillLevel] = useState<SkillLevel>("Intermediate");
+
 
   // Combine the separate date and time selections into the single ISO string
   // that Event.dateTime expects
@@ -125,9 +127,9 @@ export default function CreateScreen() {
 
         <Text style={styles.label}>Venue</Text>
         <View style={styles.pickerWrapper}>
-          <Picker selectedValue={venue} onValueChange={setVenue}>
+          <Picker selectedValue={venue} onValueChange={setVenue} itemStyle={styles.pickerItem}>
             {VENUES.map((option) => (
-              <Picker.Item key={option} label={option} value={option} />
+              <Picker.Item key={option} label={option} value={option}  />
             ))}
           </Picker>
         </View>
@@ -148,7 +150,7 @@ export default function CreateScreen() {
         <Text style={styles.label}>Time</Text>
         <View style={styles.timeRow}>
           <View style={[styles.pickerWrapper, styles.timePicker]}>
-            <Picker selectedValue={hour} onValueChange={setHour}>
+            <Picker selectedValue={hour} onValueChange={setHour} itemStyle={styles.pickerItem}>
               {HOURS.map((option) => (
                 <Picker.Item
                   key={option}
@@ -159,14 +161,14 @@ export default function CreateScreen() {
             </Picker>
           </View>
           <View style={[styles.pickerWrapper, styles.timePicker]}>
-            <Picker selectedValue={minute} onValueChange={setMinute}>
+            <Picker selectedValue={minute} onValueChange={setMinute} itemStyle={styles.pickerItem}>
               {MINUTES.map((option) => (
                 <Picker.Item key={option} label={option} value={option} />
               ))}
             </Picker>
           </View>
           <View style={[styles.pickerWrapper, styles.timePicker]}>
-            <Picker selectedValue={meridiem} onValueChange={setMeridiem}>
+            <Picker selectedValue={meridiem} onValueChange={setMeridiem} itemStyle={styles.pickerItem}>
               {MERIDIEMS.map((option) => (
                 <Picker.Item key={option} label={option} value={option} />
               ))}
@@ -179,7 +181,7 @@ export default function CreateScreen() {
       <View style={[commonStyles.card, styles.card]}>
         <Text style={styles.label}>Minimum Players</Text>
         <View style={styles.pickerWrapper}>
-          <Picker selectedValue={minPlayers} onValueChange={setMinPlayers}>
+          <Picker selectedValue={minPlayers} onValueChange={setMinPlayers} itemStyle={styles.pickerItem}>
             {PLAYER_COUNTS.map((option) => (
               <Picker.Item key={option} label={String(option)} value={option} />
             ))}
@@ -235,7 +237,18 @@ const styles = StyleSheet.create({
     borderColor: colors.inputBorder,
     borderRadius: 8,
     overflow: "hidden",
+    ...Platform.select({
+      ios: { height: 180 },
+      default: {},       // web/Android stay compact — they render a real dropdown
+    }),
   },
+
+  pickerItem: {
+    height: 180,
+    fontSize: 16,
+    color: colors.textPrimary,
+    },
+
   timeRow: { flexDirection: "row", gap: 8 },
   timePicker: { flex: 1 },
   submitButton: { marginHorizontal: 16 },
