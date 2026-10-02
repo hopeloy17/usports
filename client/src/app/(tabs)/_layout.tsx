@@ -1,8 +1,9 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { colors } from "../../styles/common";
 
 export default function TabsLayout() {
   return (
-    <NativeTabs>
+    <NativeTabs minimizeBehavior="onScrollDown" tintColor={colors.surfaceTranslucent}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Find Games</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
@@ -24,7 +25,6 @@ export default function TabsLayout() {
           md="person"
         />
       </NativeTabs.Trigger>
-      {/* We can add a "Create" or "Profile" tab screen here later */}
     </NativeTabs>
   );
 }
