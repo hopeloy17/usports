@@ -1,7 +1,6 @@
 import { router } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { colors } from "../../styles/common";
-import { background } from "@expo/ui/swift-ui/modifiers";
 
 export default function TabsLayout() {
   return (
@@ -13,6 +12,7 @@ export default function TabsLayout() {
           md="sports_basketball"
         />
       </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="profile">
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
@@ -21,12 +21,19 @@ export default function TabsLayout() {
         />
       </NativeTabs.Trigger>
 
-      {/* Plus icon with open /host as a popup, rather than having its own page */}
-      <NativeTabs.Trigger name="add" role="search" disabled
-        listeners={{ tabPress: () => router.push("/host") }}
+      {/* "Create" tab opens the /host screen */}
+      <NativeTabs.Trigger
+        name="add"
+        listeners={{
+          tabPress: (e: any) => {
+            e?.preventDefault?.();
+            router.push("/host");
+          },
+        }}
       >
+        <NativeTabs.Trigger.Label>Create</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          sf={{ default: "plus", selected: "plus" }}
+          sf={{ default: "plus.circle", selected: "plus.circle.fill" }}
           md="add_circle"
         />
       </NativeTabs.Trigger>

@@ -1,5 +1,6 @@
-// Placeholder route for the "Create" tab. The tab is disabled so it never
-// actually opens; tapping it presents the /host modal instead (see _layout).
-export default function HostTab() {
-  return null;
+import { Redirect } from "expo-router";
+
+// Tapping the "Create" tab redirects directly to the /host screen
+export default function CreateTab() {
+  return <Redirect href="/host" />;
 }

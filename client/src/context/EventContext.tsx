@@ -1,5 +1,20 @@
-import React, { createContext, useContext, useState } from "react";
-import { SKILL_LEVELS, SkillLevel } from "./ProfileContext";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  createEventApi,
+  CreateEventInput,
+  fetchEvents,
+  joinEventApi,
+  leaveEventApi,
+  ServerEvent,
+} from "../api/events";
+import { ProfileContext, SkillLevel } from "./ProfileContext";
 
 // Define the shape of our Event data
 export type Event = {
@@ -13,103 +28,166 @@ export type Event = {
   skillLevel: SkillLevel;
   host: string;
   roster: string[];
+  description?: string;
   isJoinedByMe: boolean; // Tracks if the current user joined
 };
 
+export type NewEventInput = {
+  sport: string;
+  venue: string;
+  description: string;
+  dateTime: string;
+  minPlayers: number;
+  skillLevel: SkillLevel;
+  host: string;
+};
 
 // Defines what the EventContext can provide
 type EventContextType = {
   events: Event[];
-  toggleJoin: (id: string) => void;
-  createEvent: (input: NewEventInput) => void
+  loading: boolean;
+  error: string | null;
+  refreshEvents: () => Promise<void>;
+  toggleJoin: (id: string) => Promise<void>;
+  createEvent: (input: NewEventInput) => Promise<void>;
 };
 
 // Creates the required Context
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
-const today = new Date();
-today.setHours(19, 0, 0, 0);
+function toClientEvent(
+  serverEvent: ServerEvent,
+  currentUser: string,
+  createdEventIds: Set<string>,
+): Event {
+  const isHost = serverEvent.host === currentUser;
+  const isCreated = createdEventIds.has(serverEvent.id);
+  const isInRoster = serverEvent.roster.includes(currentUser);
 
-const tomorrow = new Date();
-tomorrow.setDate(tomorrow.getDate() +1);
-tomorrow.setHours(17, 30, 0, 0);
-// Initial mock data mapped to Calvin venues
-const initialEvents: Event[] = [
-  {
-    id: "1",
-    name: "John D.'s Basketball Game",
-    sport: "Basketball",
-    venue: "Spoelhof Fieldhouse",
-    dateTime: today.toISOString(),
-    joinedCount: 6,
-    minPlayers: 10,
-    skillLevel: "Intermediate",
-    host: "John D.",
-    roster: [
-      "John D.",
-      "Sarah M.",
-      "Mike T.",
-      "David L.",
-      "Emma W.",
-      "Chris P.",
-    ],
-    isJoinedByMe: false,
-  },
-  {
-    id: "2",
-    name: "Alex B.'s Soccer Game",
-    sport: "Soccer",
-    venue: "Gainey Athletic Complex",
-    dateTime: tomorrow.toISOString(),
-    joinedCount: 2,
-    minPlayers: 14,
-    skillLevel: "Beginner",
-    host: "Alex B.",
-    roster: ["Alex B.", "Gary L."],
-    isJoinedByMe: false,
-  },
-];
+  return {
+    ...serverEvent,
+    isJoinedByMe: isInRoster || isHost || isCreated,
+  };
+}
 
-// Fills the context box with the events and functions that components need
-export function EventProvider({ children }: { children: React.ReactNode }) {
-  const [events, setEvents] = useState<Event[]>(initialEvents);
+export function EventProvider({
+  children,
+  initialEvents,
+}: {
+  children: React.ReactNode;
+  initialEvents?: Event[];
+}) {
+  const profileContext = useContext(ProfileContext);
+  const currentUser = profileContext?.profile.displayName || "You";
 
-  const toggleJoin = (id: string) => {
-    setEvents((prevEvents) =>
-      prevEvents.map((event) => {
-        if (event.id === id) {
-          const isLeaving = event.isJoinedByMe;
-          return {
-            ...event,
-            isJoinedByMe: !isLeaving,
-            joinedCount: isLeaving
-              ? event.joinedCount - 1
-              : event.joinedCount + 1,
-            // Add or remove "You" from the roster for demo purposes
-            roster: isLeaving
-              ? event.roster.filter((name) => name !== "You")
-              : [...event.roster, "You"],
-          };
-        }
-        return event;
-      }),
-    );
+  const createdEventIdsRef = useRef<Set<string>>(new Set());
+  const [events, setEvents] = useState<Event[]>(initialEvents ?? []);
+  const [loading, setLoading] = useState<boolean>(!initialEvents);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const serverEvents = await fetchEvents();
+      setEvents(
+        serverEvents.map((e) =>
+          toClientEvent(e, currentUser, createdEventIdsRef.current),
+        ),
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load events";
+      setError(message);
+      console.warn("Could not fetch events from server:", message);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!initialEvents) {
+      refreshEvents();
+    }
+  }, [initialEvents, refreshEvents]);
+
+  const toggleJoin = async (id: string) => {
+    const target = events.find((e) => e.id === id);
+    if (!target) return;
+
+    const isLeaving = target.isJoinedByMe;
+
+    try {
+      const updatedServerEvent = isLeaving
+        ? await leaveEventApi(id, currentUser)
+        : await joinEventApi(id, currentUser);
+
+      if (isLeaving) {
+        createdEventIdsRef.current.delete(id);
+      }
+
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? toClientEvent(
+                updatedServerEvent,
+                currentUser,
+                createdEventIdsRef.current,
+              )
+            : e,
+        ),
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update event";
+      setError(message);
+      console.warn("Toggle join failed:", message);
+      throw err;
+    }
   };
 
-  const createEvent = (input: NewEventInput) => {
-    const newEvent: Event = {
-      ...input,
-      name: `${input.host}'s ${input.sport} Game`,
-      id: Date.now().toString(),
-      joinedCount: 1,
-      roster: [input.host],
-      isJoinedByMe: true,
-    };
-    setEvents((prevEvents) => [...prevEvents, newEvent]);
+  const createEvent = async (input: NewEventInput) => {
+    try {
+      const payload: CreateEventInput = {
+        sport: input.sport,
+        venue: input.venue,
+        description: input.description,
+        dateTime: input.dateTime,
+        minPlayers: input.minPlayers,
+        skillLevel: input.skillLevel,
+        host: input.host,
+      };
+
+      const createdServerEvent = await createEventApi(payload);
+      createdEventIdsRef.current.add(createdServerEvent.id);
+
+      const newEvent = toClientEvent(
+        createdServerEvent,
+        currentUser,
+        createdEventIdsRef.current,
+      );
+
+      setEvents((prev) => [...prev, newEvent]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create event";
+      setError(message);
+      console.warn("Create event failed:", message);
+      throw err;
+    }
   };
 
   return (
-    <EventContext.Provider value={{ events, toggleJoin, createEvent }}>
+    <EventContext.Provider
+      value={{
+        events,
+        loading,
+        error,
+        refreshEvents,
+        toggleJoin,
+        createEvent,
+      }}
+    >
       {children}
     </EventContext.Provider>
   );
@@ -118,21 +196,8 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
 // Custom hook for easy access
 export function useEvents() {
   const context = useContext(EventContext);
-  if (!context)
+  if (!context) {
     throw new Error("useEvents must be used within an EventProvider");
+  }
   return context;
-}
-
-type NewEventInput = {
-  // name: string;
-  sport: string;
-  venue: string;
-  description: string;
-  dateTime: string;
-  minPlayers: number;
-  // joinedCount: number;
-  skillLevel: SkillLevel;
-  host: string;
-  // roster: string[];
-  // isJoinedByMe: boolean;
 }

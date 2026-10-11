@@ -17,7 +17,7 @@ type ProfileContextType = {
   updateProfile: (changes: Partial<Omit<Profile, "id" | "email">>) => void;
 };
 
-const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
+export const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
 // Mock signed-in student until auth is wired up
 const initialProfile: Profile = {
