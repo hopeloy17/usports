@@ -40,7 +40,8 @@ function isValidCreateEventInput(body: unknown): body is CreateEventInput {
     typeof input.skillLevel === "string" &&
     validSkillLevels.includes(input.skillLevel as SkillLevel) &&
     typeof input.host === "string" &&
-    input.host.trim().length > 0
+    input.host.trim().length > 0 &&
+    (input.description === undefined || typeof input.description === "string")
   );
 }
 
@@ -77,6 +78,9 @@ router.post("/", (request, response) => {
     skillLevel: input.skillLevel,
     host: input.host,
     roster: [input.host],
+    ...(typeof input.description === "string" && input.description.length > 0
+      ? { description: input.description }
+      : {}),
   };
 
   response.status(201).json(addEvent(newEvent));

@@ -22,6 +22,12 @@ export default function GameCard({ game, onPress }: GameCardProps) {
         <Text style={[commonStyles.detailText, styles.detailText]}>📍 {game.venue}</Text>
         <Text style={[commonStyles.detailText, styles.detailText]}>🕒 {formatEventDateTime(game.dateTime)}</Text>
 
+        {game.description ? (
+          <Text style={styles.descriptionText} numberOfLines={2}>
+            {game.description}
+          </Text>
+        ) : null}
+
         <View style={styles.footer}>
           <Text style={commonStyles.headcountText}>
             {game.joinedCount}/{game.minPlayers} joined
@@ -41,6 +47,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   detailText: { marginBottom: 6 },
+  descriptionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+    marginBottom: 6,
+    lineHeight: 18,
+  },
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",

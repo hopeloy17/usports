@@ -11,6 +11,7 @@ export type Event = {
   skillLevel: SkillLevel;
   host: string;
   roster: string[];
+  description?: string;
 };
 
 export type CreateEventInput = {
@@ -20,6 +21,7 @@ export type CreateEventInput = {
   minPlayers: number;
   skillLevel: SkillLevel;
   host: string;
+  description?: string;
 };
 
 export type UpdateEventInput = Partial<Omit<Event, "id">>;

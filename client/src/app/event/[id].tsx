@@ -26,6 +26,13 @@ export default function EventDetailsScreen() {
         <Text style={[commonStyles.skillBadge, styles.skillBadge]}>{event.skillLevel}</Text>
       </View>
 
+      {Boolean(event.description) && (
+        <View style={[commonStyles.card, styles.descriptionCard]}>
+          <Text style={styles.descriptionTitle}>Description</Text>
+          <Text style={styles.descriptionText}>{event.description}</Text>
+        </View>
+      )}
+
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Game Status</Text>
         <Text style={styles.statusText}>
@@ -82,6 +89,18 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: 16, color: colors.textSecondary, marginBottom: 12 },
   skillBadge: { alignSelf: "flex-start", fontSize: 14, paddingHorizontal: 10 },
+  descriptionCard: { padding: 16 },
+  descriptionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: colors.textPrimary,
+    marginBottom: 6,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
   statusCard: {
     backgroundColor: "#E6F2FF",
     padding: 16,
