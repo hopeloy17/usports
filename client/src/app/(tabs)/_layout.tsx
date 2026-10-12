@@ -22,8 +22,7 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
 
       {/* "Create" tab opens the /host screen */}
-      <NativeTabs.Trigger
-        name="add"
+      <NativeTabs.Trigger name="add" role="search" disabled
         listeners={{
           tabPress: (e: any) => {
             e?.preventDefault?.();
@@ -31,9 +30,8 @@ export default function TabsLayout() {
           },
         }}
       >
-        <NativeTabs.Trigger.Label>Create</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          sf={{ default: "plus.circle", selected: "plus.circle.fill" }}
+          sf={{ default: "plus", selected: "plus" }}
           md="add_circle"
         />
       </NativeTabs.Trigger>
