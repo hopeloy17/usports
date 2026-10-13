@@ -20,28 +20,25 @@ const validSkillLevels: SkillLevel[] = [
   "Advanced",
 ];
 
+// Makes sure that an event is valid before adding it to the database
 function isValidCreateEventInput(body: unknown): body is CreateEventInput {
+  // Makes sure that the body is an object
   if (!body || typeof body !== "object") {
     return false;
   }
 
   const input = body as Record<string, unknown>;
 
+  // Validity requirements
   return (
-    typeof input.sport === "string" &&
-    input.sport.trim().length > 0 &&
-    typeof input.venue === "string" &&
-    input.venue.trim().length > 0 &&
-    typeof input.dateTime === "string" &&
-    !Number.isNaN(Date.parse(input.dateTime)) &&
-    typeof input.minPlayers === "number" &&
-    Number.isInteger(input.minPlayers) &&
-    input.minPlayers > 0 &&
-    typeof input.skillLevel === "string" &&
-    validSkillLevels.includes(input.skillLevel as SkillLevel) &&
-    typeof input.host === "string" &&
-    input.host.trim().length > 0 &&
-    (input.description === undefined || typeof input.description === "string")
+    typeof input.sport === "string" && input.sport.trim().length > 0 &&
+    typeof input.venue === "string" && input.venue.trim().length > 0 &&
+    typeof input.dateTime === "string" && !Number.isNaN(Date.parse(input.dateTime)) &&
+    typeof input.minPlayers === "number" && Number.isInteger(input.minPlayers) && input.minPlayers > 0 &&
+    ((typeof input.maxPlayers === "number" && Number.isInteger(input.maxPlayers) && input.maxPlayers >= input.minPlayers)
+      || typeof input.maxPlayers === "undefined") &&
+    typeof input.skillLevel === "string" && validSkillLevels.includes(input.skillLevel as SkillLevel) &&
+    typeof input.host === "string" && input.host.trim().length > 0 && (input.description === undefined || typeof input.description === "string")
   );
 }
 
@@ -75,6 +72,7 @@ router.post("/", (request, response) => {
     dateTime: input.dateTime,
     joinedCount: 1,
     minPlayers: input.minPlayers,
+    maxPlayers: input.maxPlayers,
     skillLevel: input.skillLevel,
     host: input.host,
     roster: [input.host],
@@ -117,22 +115,26 @@ router.post("/:id/join", (request, response) => {
   const event = getEventById(request.params.id);
   const participant = request.body?.participant;
 
+  // Event no longer exists
   if (!event) {
     response.status(404).json({ error: "Event not found" });
     return;
   }
 
+  // Participant is not provided
   if (typeof participant !== "string" || participant.trim().length === 0) {
     response.status(400).json({ error: "Participant is required" });
     return;
   }
 
+  // Already joined check
   if (event.roster.includes(participant)) {
     response.status(409).json({ error: "Participant has already joined" });
     return;
   }
 
-  if (event.joinedCount >= event.minPlayers) {
+  // Capacity check
+  if (event.maxPlayers !== undefined && event.joinedCount >= event.maxPlayers) {
     response.status(409).json({ error: "Event is full" });
     return;
   }

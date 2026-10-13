@@ -10,6 +10,7 @@ export type ServerEvent = {
   dateTime: string;
   joinedCount: number;
   minPlayers: number;
+  maxPlayers?: number;
   skillLevel: SkillLevel;
   host: string;
   roster: string[];
@@ -22,6 +23,7 @@ export type CreateEventInput = {
   description?: string;
   dateTime: string;
   minPlayers: number;
+  maxPlayers?: number;
   skillLevel: SkillLevel;
   host: string;
 };
@@ -161,10 +163,12 @@ export async function createEventApi(
       venue: input.venue,
       dateTime: input.dateTime,
       minPlayers: input.minPlayers,
+      maxPlayers: input.maxPlayers,
       skillLevel: input.skillLevel,
       host: input.host,
       roster: [input.host],
       description: input.description,
+      joinedCount: 1
     };
     fallbackEvents = [...fallbackEvents, fallbackEvent];
     return fallbackEvent;

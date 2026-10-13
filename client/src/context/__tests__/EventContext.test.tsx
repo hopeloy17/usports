@@ -124,6 +124,7 @@ describe("EventContext", () => {
     await act(async () => {
       await result.current.createEvent({
         sport: "Volleyball",
+        description: "Casual Volleyball game at Van Noord Arena",
         venue: "Van Noord Arena",
         dateTime: "2026-09-30T18:00:00",
         minPlayers: 8,

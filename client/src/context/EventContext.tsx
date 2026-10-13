@@ -25,6 +25,7 @@ export type Event = {
   dateTime: string;
   joinedCount: number;
   minPlayers: number;
+  maxPlayers?: number;
   skillLevel: SkillLevel;
   host: string;
   roster: string[];
@@ -38,6 +39,7 @@ export type NewEventInput = {
   description: string;
   dateTime: string;
   minPlayers: number;
+  maxPlayers?: number;
   skillLevel: SkillLevel;
   host: string;
 };
@@ -154,6 +156,7 @@ export function EventProvider({
         description: input.description,
         dateTime: input.dateTime,
         minPlayers: input.minPlayers,
+        maxPlayers: input.maxPlayers,
         skillLevel: input.skillLevel,
         host: input.host,
       };

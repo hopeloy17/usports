@@ -75,6 +75,7 @@ export default function CreateScreen() {
   const [minute, setMinute] = useState(MINUTES[0]);
   const [meridiem, setMeridiem] = useState("PM");
   const [minPlayers, setMinPlayers] = useState(10);
+  const [maxPlayers, setMaxPlayers] = useState<number | undefined>(undefined);
   const [skillLevel, setSkillLevel] = useState<SkillLevel>("Intermediate");
 
   // Combine the separate date and time selections into the single ISO string
@@ -84,6 +85,7 @@ export default function CreateScreen() {
         ? (customVenue.trim() || "Custom location")
         : venue;
     const finalMinPlayers = Math.max(2, Number(minPlayers) || 10);
+    const finalMaxPlayers = maxPlayers || undefined;
     const finalHost = profile?.displayName?.trim() || "You";
 
     const [year, month, day] = date.split("-").map(Number);
@@ -106,6 +108,7 @@ export default function CreateScreen() {
       description: description.trim(),
       dateTime: finalDateTime,
       minPlayers: finalMinPlayers,
+      maxPlayers: finalMaxPlayers,
       skillLevel,
       host: finalHost,
     });
@@ -258,11 +261,19 @@ export default function CreateScreen() {
       <View style={[commonStyles.card, styles.card]}>
         <Text style={styles.label}>Minimum Players</Text>
         <View style={styles.textInputWrapper}>
-          <TextInput
-            keyboardType="number-pad"
+          <TextInput keyboardType="number-pad"
             value={minPlayers.toString()}
             style={styles.textInput}
             onChangeText={(text) => setMinPlayers(+text.replace(/[^0-9]/g, ''))}
+          />
+        </View>
+
+        <Text style={styles.label}>Maximum Players</Text>
+        <View style={styles.textInputWrapper}>
+          <TextInput keyboardType="number-pad"
+            value={(maxPlayers || '').toString()}
+            style={styles.textInput}
+            onChangeText={(text) => setMaxPlayers(+text.replace(/[^0-9]/g, ''))}
           />
         </View>
 
