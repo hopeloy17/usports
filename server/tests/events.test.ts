@@ -2,6 +2,15 @@ import request from "supertest";
 import { app } from "../src/app";
 import { resetEvents } from "../src/repositories/eventRepository";
 
+const validEvent = {
+  sport: "Volleyball",
+  venue: "Fieldhouse",
+  dateTime: "2026-10-12T18:00:00.000Z",
+  minPlayers: 8,
+  skillLevel: "Beginner",
+  host: "Taylor R.",
+};
+
 beforeEach(() => {
   resetEvents();
 });
@@ -69,6 +78,41 @@ describe("POST /api/events", () => {
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: "Invalid event data" });
   });
+
+  it("creates an event with a valid max players", async () => {
+    const response = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, maxPlayers: 12 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.maxPlayers).toBe(12);
+  });
+
+  it("allows min players to equal max players", async () => {
+    const response = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, maxPlayers: 8 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.maxPlayers).toBe(8);
+  });
+
+  it("rejects min players greater than max players", async () => {
+    const response = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, maxPlayers: 4 });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid event data" });
+  });
+
+  it("rejects a non-integer max players", async () => {
+    const response = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, maxPlayers: 10.5 });
+
+    expect(response.status).toBe(400);
+  });
 });
 
 describe("PATCH /api/events/:id", () => {
@@ -110,6 +154,32 @@ describe("POST /api/events/:id/join", () => {
       .send({ participant: "Sarah M." });
 
     expect(response.status).toBe(409);
+  });
+
+  it("rejects joining an event at max capacity", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, minPlayers: 1, maxPlayers: 1 });
+
+    const response = await request(app)
+      .post(`/api/events/${created.body.id}/join`)
+      .send({ participant: "Jordan P." });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "Event is full" });
+  });
+
+  it("allows joining past min players when there is no max", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, minPlayers: 1 });
+
+    const response = await request(app)
+      .post(`/api/events/${created.body.id}/join`)
+      .send({ participant: "Jordan P." });
+
+    expect(response.status).toBe(200);
+    expect(response.body.joinedCount).toBe(2);
   });
 });
 
