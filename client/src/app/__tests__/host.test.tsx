@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import * as eventApi from "../../api/events";
 import { Event, EventProvider, useEvents } from "../../context/EventContext";
@@ -106,10 +106,7 @@ describe("CreateScreen", () => {
     await waitFor(() => expect(events.length).toBeGreaterThan(0));
     const initialCount = events.length;
 
-    await act(async () => {
-      fireEvent.press(getByText("Create Game"));
-    });
-
+    await fireEvent.press(getByText("Create Game"));
     await waitFor(() => expect(events.length).toBe(initialCount + 1));
 
     const newEvent = events[events.length - 1];
@@ -137,9 +134,7 @@ describe("CreateScreen", () => {
 
     await waitFor(() => expect(events.length).toBeGreaterThan(0));
 
-    await act(async () => {
-      fireEvent.press(getByText("Create Game"));
-    });
+    await fireEvent.press(getByText("Create Game"));
 
     await waitFor(() => expect(events.length).toBeGreaterThan(initialEventsCount));
 
@@ -157,9 +152,7 @@ describe("CreateScreen", () => {
 
     expect(await findByText("Back")).toBeTruthy();
 
-    await act(async () => {
-      fireEvent.press(getByText("Back"));
-    });
+    await fireEvent.press(getByText("Back"));
 
     const { router } = require("expo-router");
     expect(router.replace).toHaveBeenCalledWith("/(tabs)");
@@ -171,12 +164,7 @@ describe("CreateScreen", () => {
     expect(await findByText("Venue")).toBeTruthy();
     expect(queryByTestId("custom-venue-input")).toBeNull();
 
-    const picker = getByTestId("venue-picker");
-    await act(async () => {
-      picker.props.onChange({
-        nativeEvent: { newValue: "Custom location", newIndex: 8 },
-      });
-    });
+    fireEvent(getByTestId("venue-picker"), "valueChange", "Custom location");
 
     await waitFor(() => {
       expect(getByTestId("custom-venue-input")).toBeTruthy();
@@ -199,25 +187,15 @@ describe("CreateScreen", () => {
 
     await waitFor(() => expect(events.length).toBeGreaterThan(0));
 
-    const picker = getByTestId("venue-picker");
-    await act(async () => {
-      picker.props.onChange({
-        nativeEvent: { newValue: "Custom location", newIndex: 8 },
-      });
-    });
+    fireEvent(getByTestId("venue-picker"), "valueChange", "Custom location");
 
     await waitFor(() => expect(getByTestId("custom-venue-input")).toBeTruthy());
     const customInput = getByTestId("custom-venue-input");
     const descInput = getByPlaceholderText(/Add details about the game/);
 
-    await act(async () => {
-      fireEvent.changeText(customInput, "Seminary Pond");
-      fireEvent.changeText(descInput, "Bring your own skates and sticks.");
-    });
-
-    await act(async () => {
-      fireEvent.press(getByText("Create Game"));
-    });
+    await fireEvent.changeText(customInput, "Seminary Pond");
+    await fireEvent.changeText(descInput, "Bring your own skates and sticks.");
+    await fireEvent.press(getByText("Create Game"));
 
     await waitFor(() => expect(events.length).toBe(3));
     const newEvent = events[events.length - 1];

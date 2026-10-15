@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react-native";
+import { act, render, renderHook, waitFor } from "@testing-library/react-native";
 import React from "react";
 import * as eventApi from "../../api/events";
 import { EventProvider, useEvents } from "../EventContext";
@@ -145,5 +145,158 @@ describe("EventContext", () => {
     expect(newEvent.isJoinedByMe).toBe(true);
     expect(newEvent.id).toBeTruthy();
     expect(eventApi.createEventApi).toHaveBeenCalled();
+  });
+
+  it("leaves an event when toggleJoin is called on an already joined event", async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventProvider>{children}</EventProvider>
+    );
+
+    const { result } = await renderHook(() => useEvents(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.events.length).toBeGreaterThan(0);
+    });
+
+    const targetId = result.current.events[0].id;
+
+    // First toggle: join
+    await act(async () => {
+      await result.current.toggleJoin(targetId);
+    });
+    expect(result.current.events[0].isJoinedByMe).toBe(true);
+    expect(result.current.events[0].joinedCount).toBe(7);
+
+    // Second toggle: leave
+    await act(async () => {
+      await result.current.toggleJoin(targetId);
+    });
+
+    expect(result.current.events[0].isJoinedByMe).toBe(false);
+    expect(result.current.events[0].roster).not.toContain("You");
+    expect(eventApi.leaveEventApi).toHaveBeenCalledWith(targetId, "You");
+  });
+
+  it("handles fetchEvents error gracefully and updates error state", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    (eventApi.fetchEvents as jest.Mock).mockRejectedValueOnce(
+      new Error("Network connection error"),
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventProvider>{children}</EventProvider>
+    );
+
+    const { result } = await renderHook(() => useEvents(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.error).toBe("Network connection error");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not fetch events from server:",
+      "Network connection error",
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("sets error state and rethrows when toggleJoin fails", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    (eventApi.joinEventApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Failed to join"),
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventProvider>{children}</EventProvider>
+    );
+
+    const { result } = await renderHook(() => useEvents(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.events.length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      await expect(result.current.toggleJoin("1")).rejects.toThrow("Failed to join");
+    });
+
+    expect(result.current.error).toBe("Failed to join");
+    expect(warnSpy).toHaveBeenCalledWith("Toggle join failed:", "Failed to join");
+    warnSpy.mockRestore();
+  });
+
+  it("sets error state and rethrows when createEvent fails", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    (eventApi.createEventApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Failed to create"),
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventProvider>{children}</EventProvider>
+    );
+
+    const { result } = await renderHook(() => useEvents(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.events.length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.createEvent({
+          sport: "Soccer",
+          venue: "Field",
+          description: "Match",
+          dateTime: "2026-10-15T10:00:00Z",
+          minPlayers: 4,
+          skillLevel: "Beginner",
+          host: "Taylor R.",
+        }),
+      ).rejects.toThrow("Failed to create");
+    });
+
+    expect(result.current.error).toBe("Failed to create");
+    expect(warnSpy).toHaveBeenCalledWith("Create event failed:", "Failed to create");
+    warnSpy.mockRestore();
+  });
+
+  it("throws an error when useEvents is called outside EventProvider", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    class ErrorBoundary extends React.Component<
+      { children: React.ReactNode },
+      { error: Error | null }
+    > {
+      state = { error: null };
+      static getDerivedStateFromError(error: Error) {
+        return { error };
+      }
+      render() {
+        if (this.state.error) {
+          const { Text } = require("react-native");
+          return <Text testID="error">{(this.state.error as Error).message}</Text>;
+        }
+        return this.props.children;
+      }
+    }
+
+    const Consumer = () => {
+      useEvents();
+      return null;
+    };
+
+    const { getByTestId } = await render(
+      <ErrorBoundary>
+        <Consumer />
+      </ErrorBoundary>,
+    );
+
+
+    expect(getByTestId("error").props.children).toBe(
+      "useEvents must be used within an EventProvider",
+    );
+
+    errorSpy.mockRestore();
   });
 });
