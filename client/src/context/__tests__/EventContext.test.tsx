@@ -178,6 +178,7 @@ describe("EventContext", () => {
   });
 
   it("handles fetchEvents error gracefully and updates error state", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     (eventApi.fetchEvents as jest.Mock).mockRejectedValueOnce(
       new Error("Network connection error"),
     );
@@ -193,9 +194,15 @@ describe("EventContext", () => {
     });
 
     expect(result.current.error).toBe("Network connection error");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not fetch events from server:",
+      "Network connection error",
+    );
+    warnSpy.mockRestore();
   });
 
   it("sets error state and rethrows when toggleJoin fails", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     (eventApi.joinEventApi as jest.Mock).mockRejectedValueOnce(
       new Error("Failed to join"),
     );
@@ -215,9 +222,12 @@ describe("EventContext", () => {
     });
 
     expect(result.current.error).toBe("Failed to join");
+    expect(warnSpy).toHaveBeenCalledWith("Toggle join failed:", "Failed to join");
+    warnSpy.mockRestore();
   });
 
   it("sets error state and rethrows when createEvent fails", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     (eventApi.createEventApi as jest.Mock).mockRejectedValueOnce(
       new Error("Failed to create"),
     );
@@ -247,6 +257,8 @@ describe("EventContext", () => {
     });
 
     expect(result.current.error).toBe("Failed to create");
+    expect(warnSpy).toHaveBeenCalledWith("Create event failed:", "Failed to create");
+    warnSpy.mockRestore();
   });
 
   it("throws an error when useEvents is called outside EventProvider", async () => {
