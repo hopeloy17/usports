@@ -79,6 +79,17 @@ describe("POST /api/events", () => {
     expect(response.body).toEqual({ error: "Invalid event data" });
   });
 
+  it("rejects non-object body in POST /api/events", async () => {
+    const response = await request(app)
+      .post("/api/events")
+      .set("Content-Type", "text/plain")
+      .send("not an object");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid event data" });
+  });
+
+
   it("creates an event with a valid max players", async () => {
     const response = await request(app)
       .post("/api/events")
@@ -124,6 +135,26 @@ describe("PATCH /api/events/:id", () => {
     expect(response.status).toBe(200);
     expect(response.body.venue).toBe("New Fieldhouse");
   });
+
+  it("returns 404 when updating an unknown event", async () => {
+    const response = await request(app)
+      .patch("/api/events/unknown")
+      .send({ venue: "New Fieldhouse" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Event not found" });
+  });
+
+  it("rejects invalid non-object payload", async () => {
+    const response = await request(app)
+      .patch("/api/events/1")
+      .set("Content-Type", "text/plain")
+      .send("not a json object");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid event data" });
+  });
+
 });
 
 describe("DELETE /api/events/:id", () => {
@@ -134,6 +165,13 @@ describe("DELETE /api/events/:id", () => {
 
     const getResponse = await request(app).get("/api/events/1");
     expect(getResponse.status).toBe(404);
+  });
+
+  it("returns 404 when deleting an unknown event", async () => {
+    const response = await request(app).delete("/api/events/unknown");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Event not found" });
   });
 });
 
@@ -146,6 +184,24 @@ describe("POST /api/events/:id/join", () => {
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(7);
     expect(response.body.roster).toContain("Jordan P.");
+  });
+
+  it("returns 404 when joining an unknown event", async () => {
+    const response = await request(app)
+      .post("/api/events/unknown/join")
+      .send({ participant: "Jordan P." });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Event not found" });
+  });
+
+  it("rejects joining without a participant", async () => {
+    const response = await request(app)
+      .post("/api/events/1/join")
+      .send({ participant: "" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Participant is required" });
   });
 
   it("rejects duplicate participants", async () => {
@@ -193,4 +249,41 @@ describe("POST /api/events/:id/leave", () => {
     expect(response.body.joinedCount).toBe(5);
     expect(response.body.roster).not.toContain("Sarah M.");
   });
+
+  it("returns 404 when leaving an unknown event", async () => {
+    const response = await request(app)
+      .post("/api/events/unknown/leave")
+      .send({ participant: "Sarah M." });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Event not found" });
+  });
+
+  it("returns 404 when participant is not in the roster", async () => {
+    const response = await request(app)
+      .post("/api/events/1/leave")
+      .send({ participant: "NonExistentPlayer" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Participant not found" });
+  });
+
+  it("rejects when the host attempts to leave the event", async () => {
+    const response = await request(app)
+      .post("/api/events/1/leave")
+      .send({ participant: "John D." });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "The host cannot leave the event" });
+  });
 });
+
+describe("Unknown routes", () => {
+  it("returns 404 for undefined routes", async () => {
+    const response = await request(app).get("/api/unknown-endpoint");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Route not found" });
+  });
+});
+
