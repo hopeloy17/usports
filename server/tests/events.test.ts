@@ -1,6 +1,7 @@
 import request from "supertest";
 import { app } from "../src/app";
 import { resetEvents } from "../src/repositories/eventRepository";
+import { response } from "express";
 
 const validEvent = {
   sport: "Volleyball",
@@ -287,3 +288,77 @@ describe("Unknown routes", () => {
   });
 });
 
+describe("GET /api/events with filters", () => {
+  it("filters events by sport", async () => {
+    const response = await request(app).get("/api/events?sport=Soccer");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].id).toBe("2");
+  });
+
+  it("matches sport case-insensitively", async () => {
+    const response = await request(app).get("/api/events?sport=soccer");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].id).toBe("2");
+  });
+
+  it("filters events by skill level", async () => {
+    const response = await request(app).get("/api/events?skillLevel=Intermediate");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].id).toBe("1");
+  });
+
+  it("filters events by date", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, dateTime: "2027-10-21T18:00:00.000Z" });
+
+    const response = await request(app).get("/api/events?date=2027-10-21");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].id).toBe(created.body.id);
+  });
+
+  it("combines filters so every filter must match", async () => {
+    const response = await request(app).get(
+      "/api/events?sport=Basketball&skillLevel=Beginner",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
+  it("returns an empty list for a sport with no events", async () => {
+    const response = await request(app).get("/api/events?sport=Curling");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
+  it("rejects an invalid skill level", async () => {
+    const response = await request(app).get("/api/events?skillLevel=Expert");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid skill level" });
+  });
+
+  it("rejects a date that is not in YYYY-MM-DD format", async () => {
+    const response = await request(app).get("/api/events?date=10/21/2026");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid date" });
+  });
+
+  it("rejects a date that does not exist", async () => {
+    const response = await request(app).get("/api/events?date=2026-13-45");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid date" });
+  });
+});

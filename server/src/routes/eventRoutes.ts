@@ -42,9 +42,43 @@ function isValidCreateEventInput(body: unknown): body is CreateEventInput {
   );
 }
 
-router.get("/", (_request, response) => {
-  response.status(200).json(getAllEvents());
+// router.get("/", (_request, response) => {
+//   response.status(200).json(getAllEvents());
+// });
+
+// Checks that a date is in YYYY-MM-DD format and is a real calendar date
+function isValidDateString(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return false;
+  }
+
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+  return !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().startsWith(date);
+}
+
+router.get("/", (request, response) => {
+  const { sport, skillLevel, date } = request.query;
+
+  if (skillLevel !== undefined && !validSkillLevels.includes(skillLevel as SkillLevel)) {
+    response.status(400).json({ error: "Invalid skill level" });
+    return;
+  }
+
+  if (date !== undefined && (typeof date !== "string" || !isValidDateString(date))) {
+    response.status(400).json({ error: "Invalid date" });
+    return;
+  }
+
+  // Every filter that was provided must match
+  const filteredEvents = getAllEvents().filter((event) =>
+    (typeof sport !== "string" || event.sport.toLowerCase() === sport.toLowerCase()) &&
+    (skillLevel === undefined || event.skillLevel === skillLevel) &&
+    (date === undefined || new Date(event.dateTime).toISOString().startsWith(date as string))
+  );
+
+  response.status(200).json(filteredEvents);
 });
+
 
 router.get("/:id", (request, response) => {
   const event = getEventById(request.params.id);
