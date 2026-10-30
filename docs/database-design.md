@@ -181,7 +181,7 @@ CREATE TABLE venues (
   address   text,
   is_indoor boolean NOT NULL DEFAULT false
 );
-```
+``` 
 
 ### events
 
