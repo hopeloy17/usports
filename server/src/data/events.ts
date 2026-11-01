@@ -17,6 +17,7 @@ export const mockEvents: Event[] = [
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
+    status: "open",
     host: "John D.",
     roster: [
       "John D.",
@@ -37,6 +38,7 @@ export const mockEvents: Event[] = [
     joinedCount: 2,
     minPlayers: 14,
     skillLevel: "Beginner",
+    status: "open",
     host: "Alex B.",
     roster: ["Alex B.", "Gary L."],
     description: "Friendly soccer scrimmage at Gainey Athletic Complex.",

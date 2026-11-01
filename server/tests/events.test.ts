@@ -34,6 +34,17 @@ describe("GET /api/events", () => {
     expect(response.body[0]).toHaveProperty("sport");
     expect(response.body[0]).toHaveProperty("venue");
   });
+
+  it("gives every event a valid status", async () => {
+    const response = await request(app).get("/api/events");
+
+    expect(response.status).toBe(200);
+    expect(response.body.length).toBeGreaterThan(0);
+
+    for (const event of response.body) {
+      expect(["open", "full", "cancelled"]).toContain(event.status);
+    }
+  });
 });
 
 describe("GET /api/events/:id", () => {
@@ -225,6 +236,32 @@ describe("POST /api/events/:id/join", () => {
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "Event is full" });
   });
+    it("marks an event full when the last spot is taken", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, minPlayers: 2, maxPlayers: 2 });
+
+    const response = await request(app)
+      .post(`/api/events/${created.body.id}/join`)
+      .send({ participant: "Jordan P." });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("full");
+  });
+
+  it("rejects joining a cancelled event", async () => {
+    const created = await request(app).post("/api/events").send(validEvent);
+    await request(app)
+      .patch(`/api/events/${created.body.id}`)
+      .send({ status: "cancelled" });
+
+    const response = await request(app)
+      .post(`/api/events/${created.body.id}/join`)
+      .send({ participant: "Jordan P." });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "Event is cancelled" });
+  });
 
   it("allows joining past min players when there is no max", async () => {
     const created = await request(app)
@@ -251,6 +288,21 @@ describe("POST /api/events/:id/leave", () => {
     expect(response.body.roster).not.toContain("Sarah M.");
   });
 
+  it("reopens a full event when someone leaves", async () => {
+    const created = await request(app)
+      .post("/api/events")
+      .send({ ...validEvent, minPlayers: 2, maxPlayers: 2 });
+    await request(app)
+      .post(`/api/events/${created.body.id}/join`)
+      .send({ participant: "Jordan P." });
+
+    const response = await request(app)
+      .post(`/api/events/${created.body.id}/leave`)
+      .send({ participant: "Jordan P." });
+
+    expect(response.body.status).toBe("open");
+  });
+  
   it("returns 404 when leaving an unknown event", async () => {
     const response = await request(app)
       .post("/api/events/unknown/leave")

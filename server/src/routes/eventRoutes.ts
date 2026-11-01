@@ -108,6 +108,7 @@ router.post("/", (request, response) => {
     minPlayers: input.minPlayers,
     maxPlayers: input.maxPlayers,
     skillLevel: input.skillLevel,
+    status: "open",
     host: input.host,
     roster: [input.host],
     ...(typeof input.description === "string" && input.description.length > 0
@@ -161,6 +162,12 @@ router.post("/:id/join", (request, response) => {
     return;
   }
 
+  // Cancelled check
+  if (event.status === "cancelled") {
+    response.status(409).json({ error: "Event is cancelled" });
+    return;
+  }
+
   // Already joined check
   if (event.roster.includes(participant)) {
     response.status(409).json({ error: "Participant has already joined" });
@@ -173,9 +180,13 @@ router.post("/:id/join", (request, response) => {
     return;
   }
 
+  const newCount = event.joinedCount + 1;
+  const isNowFull = event.maxPlayers !== undefined && newCount >= event.maxPlayers;
+
   const updatedEvent = updateEvent(event.id, {
-    joinedCount: event.joinedCount + 1,
+    joinedCount: newCount,
     roster: [...event.roster, participant],
+    status: isNowFull ? "full" : event.status,
   });
 
   response.status(200).json(updatedEvent);
@@ -203,6 +214,7 @@ router.post("/:id/leave", (request, response) => {
   const updatedEvent = updateEvent(event.id, {
     joinedCount: event.joinedCount - 1,
     roster: event.roster.filter((name) => name !== participant),
+    status: event.status === "full" ? "open" : event.status,
   });
 
   response.status(200).json(updatedEvent);
