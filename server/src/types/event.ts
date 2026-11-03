@@ -1,4 +1,5 @@
 export type SkillLevel = "Beginner" | "Intermediate" | "Advanced";
+export type EventStatus = "open" | "full" | "cancelled";
 
 export type Event = {
   id: string;
@@ -10,6 +11,7 @@ export type Event = {
   minPlayers: number;
   maxPlayers?: number;
   skillLevel: SkillLevel;
+  status: EventStatus;
   host: string;
   roster: string[];
   description?: string;
