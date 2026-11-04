@@ -1,4 +1,5 @@
 import express from "express";
+import { errorHandler } from "./middleware/errorHandler";
 import eventRoutes from "./routes/eventRoutes";
 
 export const app = express();
@@ -25,3 +26,6 @@ app.use("/api/events", eventRoutes);
 app.use((_request, response) => {
   response.status(404).json({ error: "Route not found" });
 });
+
+// Must be registered last so it catches errors from every route above
+app.use(errorHandler);
