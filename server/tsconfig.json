@@ -1,9 +1,14 @@
 {
+  // JSON with comments: tsc reads this file as JSONC, so these notes are allowed
   "compilerOptions": {
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "Node16",
-    "rootDir": "src",
+    // Compile from the whole server folder, not just src/, so any server code
+    // (src/, src/db/, future folders) can import each other without
+    // "file is not under rootDir" errors. Output mirrors the folder layout,
+    // so the entry point builds to dist/src/index.js (see package.json "start").
+    "rootDir": ".",
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
@@ -12,6 +17,8 @@
     "isolatedModules": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts"],
+  // Every TypeScript file in server/ is part of the build...
+  "include": ["**/*.ts"],
+  // ...except dependencies, previous build output, and tests (Jest compiles those itself)
   "exclude": ["node_modules", "dist", "tests"]
 }
