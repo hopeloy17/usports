@@ -8,6 +8,17 @@ For college students who want to find people to play pickup sports with but don'
 
 ### Starting Server and Client
 
-To start the server, go to the root directory and run "npm run dev:server"
-To start the client, go to the root directory and run "npm start --prefix client"
+To start the server, go to the root directory and run 
+```bash
+npm run dev:server
+```
+To start the client, go to the root directory and run 
+```bash
+npm start --prefix client
+```
 
+### Database Setup
+1. Accept your email invitation to the **usports-db** project on Supabase (using your Calvin emails).
+2. Navigate to **Project Settings** (`⚙️`) -> **API Keys** in the Supabase Dashboard.
+3. In `/server`, create a `.env` file based on the template `.env.example`
+4.  Replace the placeholders for `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` with project credentials from Supabase.
