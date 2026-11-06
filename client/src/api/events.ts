@@ -229,8 +229,8 @@ export async function leaveEventApi(
 ): Promise<ServerEvent> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/api/events/${id}/leave`, {
-      method: "POST",
+    response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
+      method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },

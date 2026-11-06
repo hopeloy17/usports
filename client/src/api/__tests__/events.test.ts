@@ -129,7 +129,7 @@ describe("events API client", () => {
     expect(result).toEqual(updatedEvent);
   });
 
-  it("leaves an event via POST /api/events/:id/leave", async () => {
+  it("leaves an event via DELETE /api/events/:id/join", async () => {
     const updatedEvent = {
       id: "1",
       joinedCount: 5,
@@ -144,9 +144,9 @@ describe("events API client", () => {
     const result = await leaveEventApi("1", "You");
 
     expect(global.fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/events/1/leave`,
+      `${API_BASE_URL}/api/events/1/join`,
       expect.objectContaining({
-        method: "POST",
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ participant: "You" }),
       }),

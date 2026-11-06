@@ -1,5 +1,6 @@
 import request from "supertest";
 import { app } from "../src/app";
+import * as eventRepository from "../src/repositories/eventRepository";
 import { resetEvents } from "../src/repositories/eventRepository";
 import { response } from "express";
 
@@ -44,6 +45,12 @@ describe("GET /api/events", () => {
     for (const event of response.body) {
       expect(["open", "full", "cancelled"]).toContain(event.status);
     }
+  });
+
+  it("includes each event's headcount for the feed", async () => {
+    const response = await request(app).get("/api/events");
+
+    expect(response.body[0].headcount).toBe("6/10 joined");
   });
 });
 
@@ -277,10 +284,10 @@ describe("POST /api/events/:id/join", () => {
   });
 });
 
-describe("POST /api/events/:id/leave", () => {
+describe("DELETE /api/events/:id/join", () => {
   it("removes a participant from an event", async () => {
     const response = await request(app)
-      .post("/api/events/1/leave")
+      .delete("/api/events/1/join")
       .send({ participant: "Sarah M." });
 
     expect(response.status).toBe(200);
@@ -297,7 +304,7 @@ describe("POST /api/events/:id/leave", () => {
       .send({ participant: "Jordan P." });
 
     const response = await request(app)
-      .post(`/api/events/${created.body.id}/leave`)
+      .delete(`/api/events/${created.body.id}/join`)
       .send({ participant: "Jordan P." });
 
     expect(response.body.status).toBe("open");
@@ -305,7 +312,7 @@ describe("POST /api/events/:id/leave", () => {
   
   it("returns 404 when leaving an unknown event", async () => {
     const response = await request(app)
-      .post("/api/events/unknown/leave")
+      .delete("/api/events/unknown/join")
       .send({ participant: "Sarah M." });
 
     expect(response.status).toBe(404);
@@ -314,7 +321,7 @@ describe("POST /api/events/:id/leave", () => {
 
   it("returns 404 when participant is not in the roster", async () => {
     const response = await request(app)
-      .post("/api/events/1/leave")
+      .delete("/api/events/1/join")
       .send({ participant: "NonExistentPlayer" });
 
     expect(response.status).toBe(404);
@@ -323,11 +330,49 @@ describe("POST /api/events/:id/leave", () => {
 
   it("rejects when the host attempts to leave the event", async () => {
     const response = await request(app)
-      .post("/api/events/1/leave")
+      .delete("/api/events/1/join")
       .send({ participant: "John D." });
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "The host cannot leave the event" });
+  });
+
+  it("no longer accepts the old POST /leave route", async () => {
+    const response = await request(app)
+      .post("/api/events/1/leave")
+      .send({ participant: "Sarah M." });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Route not found" });
+  });
+});
+
+describe("Unexpected errors", () => {
+  // Runs even when the test fails, so the fake failure never leaks into other tests
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("returns 500 with a generic message when something unexpected fails", async () => {
+    jest.spyOn(eventRepository, "getAllEvents").mockImplementation(() => {
+      throw new Error("Database connection lost");
+    });
+    jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await request(app).get("/api/events");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Internal server error" });
+  });
+
+  it("returns 400 when the request body is not valid JSON", async () => {
+    const response = await request(app)
+      .post("/api/events")
+      .set("Content-Type", "application/json")
+      .send("{ not valid json");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid JSON body" });
   });
 });
 

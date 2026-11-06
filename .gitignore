@@ -6,3 +6,6 @@ CLAUDE.md
 
 # npm workspaces: only the root package-lock.json is authoritative
 /*/package-lock.json
+
+# Local Playwright MCP tool output (logs, page snapshots)
+.playwright-mcp/

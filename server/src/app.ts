@@ -1,12 +1,16 @@
 import express from "express";
+import { errorHandler } from "./middleware/errorHandler";
 import eventRoutes from "./routes/eventRoutes";
+import profileRoutes from "./routes/profileRoutes";
 
 export const app = express();
 
 app.use((_request, response, next) => {
   response.header("Access-Control-Allow-Origin", "*");
-  response.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
-  response.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  // PUT is used by PUT /api/profile
+  response.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  // x-user-id identifies the user until sign-in exists (see auth/requestUser.ts)
+  response.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-user-id");
   if (_request.method === "OPTIONS") {
     response.sendStatus(204);
     return;
@@ -21,7 +25,11 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.use("/api/events", eventRoutes);
+app.use("/api/profile", profileRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ error: "Route not found" });
 });
+
+// Must be registered last so it catches errors from every route above
+app.use(errorHandler);
