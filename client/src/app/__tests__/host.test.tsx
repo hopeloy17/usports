@@ -26,6 +26,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
+    status: "open",
     host: "John D.",
     roster: [
       "John D.",
@@ -45,6 +46,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 2,
     minPlayers: 14,
     skillLevel: "Beginner",
+    status: "open",
     host: "Alex B.",
     roster: ["Alex B.", "Gary L."],
   },

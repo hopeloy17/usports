@@ -2,6 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Event } from "../context/EventContext";
 import { colors, commonStyles } from "../styles/common";
+import StatusBadge from "./StatusBadge";
 import { formatEventDateTime } from "../utils/formatEventTime";
 
 type GameCardProps = {
@@ -18,6 +19,7 @@ export default function GameCard({ game, onPress }: GameCardProps) {
           <Text style={commonStyles.sportText}>{game.sport}</Text>
           <Text style={commonStyles.skillBadge}>{game.skillLevel}</Text>
         </View>
+        <StatusBadge status={game.status} />
 
         <Text style={[commonStyles.detailText, styles.detailText]}>📍 {game.venue}</Text>
         <Text style={[commonStyles.detailText, styles.detailText]}>🕒 {formatEventDateTime(game.dateTime)}</Text>

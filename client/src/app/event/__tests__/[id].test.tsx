@@ -24,6 +24,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
+    status: "open",
     host: "John D.",
     roster: [
       "John D.",
@@ -44,6 +45,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 14,
     minPlayers: 14,
     skillLevel: "Beginner",
+    status: "open",
     host: "Alex B.",
     roster: ["Alex B."],
   },
@@ -118,6 +120,14 @@ describe("EventDetailsScreen", () => {
 
     expect(await findByText("14/14 players joined")).toBeTruthy();
     expect(queryByText(/Needs .* more players to happen\./)).toBeNull();
+  });
+
+  it("shows the game's status badge", async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: "1" });
+
+    const { findByTestId } = await renderWithProviders(<EventDetailsScreen />);
+
+    expect(await findByTestId("status-badge")).toHaveTextContent("Open");
   });
 
   it("allows joining and leaving the game via the action button", async () => {
