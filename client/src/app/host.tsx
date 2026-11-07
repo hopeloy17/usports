@@ -151,6 +151,7 @@ export default function CreateScreen() {
           {SPORTS.map((option) => (
             <Pressable
               key={option}
+              testID={`sport-option-${option}`}
               onPress={() => setSport(option)}
               style={[
                 styles.Button,
@@ -262,6 +263,7 @@ export default function CreateScreen() {
         <Text style={styles.label}>Minimum Players</Text>
         <View style={styles.textInputWrapper}>
           <TextInput keyboardType="number-pad"
+            testID="min-players-input"
             value={minPlayers.toString()}
             style={styles.textInput}
             onChangeText={(text) => setMinPlayers(+text.replace(/[^0-9]/g, ''))}
@@ -271,6 +273,7 @@ export default function CreateScreen() {
         <Text style={styles.label}>Maximum Players</Text>
         <View style={styles.textInputWrapper}>
           <TextInput keyboardType="number-pad"
+            testID="max-players-input"
             value={(maxPlayers || '').toString()}
             style={styles.textInput}
             onChangeText={(text) => setMaxPlayers(+text.replace(/[^0-9]/g, ''))}
@@ -316,6 +319,7 @@ export default function CreateScreen() {
           <Text style={styles.secondaryButtonText}>Back</Text>
         </Pressable>
         <Pressable
+          testID="create-game-button"
           style={[commonStyles.button, styles.submitButton]}
           onPress={handleSubmit}
         >

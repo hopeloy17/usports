@@ -156,6 +156,7 @@ export default function EventFeedScreen() {
 
       {/* Display the list of events in a scrollable list */}
       <FlatList
+        testID="feed-list"
         data={filteredEvents}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}

@@ -27,8 +27,15 @@ const initialProfile: Profile = {
   skillLevel: "Intermediate",
 };
 
-export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<Profile>(initialProfile);
+// `startingProfile` lets tests (and later, real sign-in) start as a specific student
+export function ProfileProvider({
+  children,
+  startingProfile = initialProfile,
+}: {
+  children: React.ReactNode;
+  startingProfile?: Profile;
+}) {
+  const [profile, setProfile] = useState<Profile>(startingProfile);
 
   const updateProfile: ProfileContextType["updateProfile"] = (changes) => {
     setProfile((prev) => ({ ...prev, ...changes }));

@@ -39,7 +39,7 @@ export default function EventDetailsScreen() {
 
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Game Status</Text>
-        <Text style={styles.statusText}>
+        <Text testID="event-headcount" style={styles.statusText}>
           {event.joinedCount}/{event.minPlayers} players joined
         </Text>
         {event.joinedCount < event.minPlayers && (
@@ -50,6 +50,7 @@ export default function EventDetailsScreen() {
       </View>
 
       <Pressable
+        testID="join-leave-button"
         style={[
           commonStyles.button,
           styles.joinButton,
@@ -71,7 +72,7 @@ export default function EventDetailsScreen() {
       <View style={styles.rosterSection}>
         <Text style={commonStyles.sectionTitle}>Roster</Text>
         {event.roster.map((player, index) => (
-          <View key={index} style={styles.rosterItem}>
+          <View key={index} testID={`roster-item-${player}`} style={styles.rosterItem}>
             <Text style={styles.rosterName}>
               {player} {player === event.host ? "(Host)" : ""}
             </Text>

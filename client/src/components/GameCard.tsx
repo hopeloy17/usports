@@ -14,7 +14,7 @@ export default function GameCard({ game, onPress }: GameCardProps) {
   { /* Return a card that displays the game details and navigates to the event when pressed */ }
   return (
     <Link href={`/event/${game.id}`} asChild>
-      <Pressable style={commonStyles.card} onPress={onPress}>
+      <Pressable testID={`game-card-${game.id}`} style={commonStyles.card} onPress={onPress}>
         <View style={styles.cardHeader}>
           <Text style={commonStyles.sportText}>{game.sport}</Text>
           <Text style={commonStyles.skillBadge}>{game.skillLevel}</Text>
@@ -31,7 +31,7 @@ export default function GameCard({ game, onPress }: GameCardProps) {
         ) : null}
 
         <View style={styles.footer}>
-          <Text style={commonStyles.headcountText}>
+          <Text testID={`game-card-headcount-${game.id}`} style={commonStyles.headcountText}>
             {game.joinedCount}/{game.minPlayers} joined
           </Text>
           <Text style={styles.joinPrompt}>View Details →</Text>

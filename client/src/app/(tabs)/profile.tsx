@@ -45,7 +45,7 @@ export default function ProfileScreen() {
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.identityText}>
-            <Text style={styles.name}>{profile.displayName}</Text>
+            <Text testID="profile-name" style={styles.name}>{profile.displayName}</Text>
             <Text style={styles.email}>{profile.email}</Text>
           </View>
         </View>
@@ -54,6 +54,7 @@ export default function ProfileScreen() {
           <View style={styles.form}>
             <Text style={styles.label}>Display Name</Text>
             <TextInput
+              testID="display-name-input"
               style={styles.input}
               value={draftName}
               onChangeText={setDraftName}
@@ -66,6 +67,7 @@ export default function ProfileScreen() {
               {SKILL_LEVELS.map((level) => (
                 <Pressable
                   key={level}
+                  testID={`skill-option-${level}`}
                   style={[
                     styles.skillOption,
                     draftSkill === level && styles.skillOptionSelected,
@@ -92,6 +94,7 @@ export default function ProfileScreen() {
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
               </Pressable>
               <Pressable
+                testID="save-profile-button"
                 style={[commonStyles.button, styles.button, !draftName.trim() && styles.disabled]}
                 onPress={saveProfile}
                 disabled={!draftName.trim()}
@@ -107,6 +110,7 @@ export default function ProfileScreen() {
               <Text style={commonStyles.skillBadge}>{profile.skillLevel}</Text>
             </View>
             <Pressable
+              testID="edit-profile-button"
               style={[commonStyles.button, styles.button, styles.secondaryButton]}
               onPress={startEditing}
             >
