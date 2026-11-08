@@ -26,6 +26,7 @@ describe("events API client", () => {
         joinedCount: 6,
         minPlayers: 10,
         skillLevel: "Intermediate",
+        status: "open",
         host: "John D.",
         roster: ["John D."],
       },
@@ -52,6 +53,7 @@ describe("events API client", () => {
       joinedCount: 6,
       minPlayers: 10,
       skillLevel: "Intermediate",
+      status: "open",
       host: "John D.",
       roster: ["John D."],
     };

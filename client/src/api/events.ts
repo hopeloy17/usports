@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { SkillLevel } from "../context/ProfileContext";
+import { EventStatus } from "../styles/common";
 
 export type ServerEvent = {
   id: string;
@@ -12,6 +13,7 @@ export type ServerEvent = {
   minPlayers: number;
   maxPlayers?: number;
   skillLevel: SkillLevel;
+  status: EventStatus;
   host: string;
   roster: string[];
   description?: string;
@@ -70,6 +72,7 @@ const getInitialFallbackEvents = (): ServerEvent[] => {
       joinedCount: 6,
       minPlayers: 10,
       skillLevel: "Intermediate",
+      status: "open",
       host: "John D.",
       roster: [
         "John D.",
@@ -90,6 +93,7 @@ const getInitialFallbackEvents = (): ServerEvent[] => {
       joinedCount: 2,
       minPlayers: 14,
       skillLevel: "Beginner",
+      status: "open",
       host: "Alex B.",
       roster: ["Alex B.", "Gary L."],
       description: "Friendly soccer scrimmage at Gainey Athletic Complex.",
@@ -165,6 +169,7 @@ export async function createEventApi(
       minPlayers: input.minPlayers,
       maxPlayers: input.maxPlayers,
       skillLevel: input.skillLevel,
+      status: "open",
       host: input.host,
       roster: [input.host],
       description: input.description,

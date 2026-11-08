@@ -16,6 +16,7 @@ function makeEvent(overrides: Partial<Event>): Event {
     joinedCount: 1,
     minPlayers: 10,
     skillLevel: "Intermediate",
+    status: "open",
     host: "John D.",
     roster: ["John D."],
     isJoinedByMe: false,
