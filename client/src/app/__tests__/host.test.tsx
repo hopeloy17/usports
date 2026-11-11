@@ -1,11 +1,13 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import * as eventApi from "../../api/events";
+import * as profileApi from "../../api/profile";
 import { Event, EventProvider, useEvents } from "../../context/EventContext";
 import { ProfileProvider } from "../../context/ProfileContext";
 import CreateScreen from "../host";
 
 jest.mock("../../api/events");
+jest.mock("../../api/profile");
 
 // The screen dismisses itself via the router after submitting; there's no
 // navigator mounted in these tests, so stub it out
@@ -63,6 +65,14 @@ const renderWithProviders = async (component: React.ReactElement) => {
 describe("CreateScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (profileApi.fetchProfile as jest.Mock).mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "You",
+      schoolEmail: "student@calvin.edu",
+      classYear: 2027,
+      bio: null,
+      profilePhotoUrl: null,
+    });
     (eventApi.fetchEvents as jest.Mock).mockResolvedValue(
       mockServerEvents.map((e) => ({ ...e, roster: [...e.roster] })),
     );
@@ -209,6 +219,98 @@ describe("CreateScreen", () => {
         description: "Bring your own skates and sticks.",
       }),
     );
+  });
+
+  it("shows validation error and prevents submission when minimum players exceeds maximum players", async () => {
+    const { getByTestId, getByText, findByTestId } = await renderWithProviders(<CreateScreen />);
+
+    await findByTestId("create-game-button");
+
+    await act(async () => {
+      fireEvent.changeText(getByTestId("min-players-input"), "12");
+      fireEvent.changeText(getByTestId("max-players-input"), "6");
+    });
+    await act(async () => {
+      fireEvent.press(getByText("Create Game"));
+    });
+
+    const errorMessage = await findByTestId("error-message");
+    expect(errorMessage).toHaveTextContent("Minimum players cannot be greater than maximum players");
+    expect(eventApi.createEventApi).not.toHaveBeenCalled();
+    const { router } = require("expo-router");
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("shows validation error and prevents submission when selected date is in the past", async () => {
+    const { getByTestId, getByText, findByTestId } = await renderWithProviders(<CreateScreen />);
+
+    await findByTestId("create-game-button");
+
+    await act(async () => {
+      fireEvent(getByTestId("event-calendar"), "dayPress", { dateString: "2020-01-01" });
+    });
+    await act(async () => {
+      fireEvent.press(getByText("Create Game"));
+    });
+
+    const errorMessage = await findByTestId("error-message");
+    expect(errorMessage).toHaveTextContent("Event date cannot be in the past");
+    expect(eventApi.createEventApi).not.toHaveBeenCalled();
+    const { router } = require("expo-router");
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("shows validation error when custom location is selected but not specified", async () => {
+    const { getByTestId, getByText, findByTestId } = await renderWithProviders(<CreateScreen />);
+
+    await findByTestId("create-game-button");
+
+    await act(async () => {
+      fireEvent(getByTestId("venue-picker"), "valueChange", "Custom location");
+    });
+    await act(async () => {
+      fireEvent.press(getByText("Create Game"));
+    });
+
+    const errorMessage = await findByTestId("error-message");
+    expect(errorMessage).toHaveTextContent("Please specify a custom location");
+    expect(eventApi.createEventApi).not.toHaveBeenCalled();
+  });
+
+  it("shows clear server error message when server rejects creation with 400 validation error", async () => {
+    (eventApi.createEventApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Invalid event data"),
+    );
+
+    const { findByTestId, getByText } = await renderWithProviders(<CreateScreen />);
+    await findByTestId("create-game-button");
+
+    await act(async () => {
+      fireEvent.press(getByText("Create Game"));
+    });
+
+    const errorMessage = await findByTestId("error-message");
+    expect(errorMessage).toHaveTextContent("Invalid event data");
+    const { router } = require("expo-router");
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("shows clear server error message when server returns 500 internal server error", async () => {
+    (eventApi.createEventApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Internal server error"),
+    );
+
+    const { findByTestId, getByText } = await renderWithProviders(<CreateScreen />);
+    await findByTestId("create-game-button");
+
+    await act(async () => {
+      fireEvent.press(getByText("Create Game"));
+    });
+
+    const errorMessage = await findByTestId("error-message");
+    expect(errorMessage).toHaveTextContent("Internal server error");
+    const { router } = require("expo-router");
+    expect(router.replace).not.toHaveBeenCalled();
   });
 });
 
