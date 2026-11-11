@@ -1,8 +1,33 @@
 import { act, render, renderHook } from "@testing-library/react-native";
 import React from "react";
+import * as profileApi from "../../api/profile";
 import { ProfileProvider, useProfile } from "../ProfileContext";
 
+jest.mock("../../api/profile");
+
 describe("ProfileContext", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (profileApi.fetchProfile as jest.Mock).mockResolvedValue({
+      id: "me",
+      name: "You",
+      schoolEmail: "student@calvin.edu",
+      classYear: null,
+      bio: null,
+      profilePhotoUrl: null,
+    });
+    (profileApi.updateProfileApi as jest.Mock).mockImplementation(
+      async (_userId: string, updates: profileApi.UpdateProfileInput) => ({
+        id: "me",
+        name: updates.name ?? "You",
+        schoolEmail: "student@calvin.edu",
+        classYear: updates.classYear ?? 2027,
+        bio: updates.bio ?? null,
+        profilePhotoUrl: null,
+      }),
+    );
+  });
+
   it("provides default profile data", async () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <ProfileProvider>{children}</ProfileProvider>
@@ -26,16 +51,18 @@ describe("ProfileContext", () => {
     const { result } = await renderHook(() => useProfile(), { wrapper });
 
     await act(async () => {
-      result.current.updateProfile({
+      await result.current.updateProfile({
         displayName: "Taylor Swift",
         skillLevel: "Advanced",
       });
     });
 
-
     expect(result.current.profile.displayName).toBe("Taylor Swift");
     expect(result.current.profile.skillLevel).toBe("Advanced");
     expect(result.current.profile.email).toBe("student@calvin.edu");
+    expect(profileApi.updateProfileApi).toHaveBeenCalledWith("me", {
+      name: "Taylor Swift",
+    });
   });
 
   it("throws an error when useProfile is called outside ProfileProvider", async () => {

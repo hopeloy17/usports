@@ -15,5 +15,8 @@
     "build:server": "npm run build --prefix server",
     "test:server": "npm test --prefix server",
     "test": "npm run test:client && npm run test:server"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^14.1.0"
   }
 }

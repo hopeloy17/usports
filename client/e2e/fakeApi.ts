@@ -18,6 +18,7 @@ function fail(status: number, error: string): JsonResponse {
 export function createFakeApi() {
   let events: ServerEvent[] = [];
   let nextId = 100;
+  let profileState: Record<string, { name: string; schoolEmail: string; bio?: string | null; classYear?: number | null }> = {};
 
   // Applies a join or leave to one event, enforcing the same rules as the server
   function changeRoster(event: ServerEvent, participant: string, joining: boolean): JsonResponse {
@@ -47,6 +48,50 @@ export function createFakeApi() {
     const method = init.method ?? "GET";
     const body = init.body ? JSON.parse(String(init.body)) : {};
     const path = new URL(url).pathname;
+
+    const headers = (init.headers as Record<string, string>) || {};
+    const userId = headers["x-user-id"] || "11111111-1111-4111-8111-111111111111";
+
+    if (path === "/api/profile" && method === "GET") {
+      const user = profileState[userId] || {
+        name: "Student",
+        schoolEmail: "student@calvin.edu",
+        bio: null,
+        classYear: 2027,
+      };
+      return respond(200, {
+        id: userId,
+        name: user.name,
+        schoolEmail: user.schoolEmail,
+        classYear: user.classYear ?? 2027,
+        bio: user.bio ?? null,
+        profilePhotoUrl: null,
+      });
+    }
+
+    if (path === "/api/profile" && method === "PUT") {
+      const current = profileState[userId] || {
+        name: "Student",
+        schoolEmail: "student@calvin.edu",
+        bio: null,
+        classYear: 2027,
+      };
+      const updated = {
+        ...current,
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.bio !== undefined ? { bio: body.bio } : {}),
+        ...(body.classYear !== undefined ? { classYear: body.classYear } : {}),
+      };
+      profileState[userId] = updated;
+      return respond(200, {
+        id: userId,
+        name: updated.name,
+        schoolEmail: updated.schoolEmail,
+        classYear: updated.classYear ?? 2027,
+        bio: updated.bio ?? null,
+        profilePhotoUrl: null,
+      });
+    }
 
     if (path === "/api/events" && method === "GET") return respond(200, events);
 
