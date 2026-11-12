@@ -36,7 +36,7 @@ router.post("/", async (request, response) => {
   response.status(201).json(await createEvent(request.body));
 });
 
-router.patch("/:id", (request, response) => {
+router.patch("/:id", async (request, response) => {
   const updates = request.body as UpdateEventInput;
 
   if (!updates || typeof updates !== "object") {
@@ -44,7 +44,7 @@ router.patch("/:id", (request, response) => {
     return;
   }
 
-  const event = updateEvent(request.params.id, updates);
+  const event = await updateEvent(request.params.id, updates);
 
   if (!event) {
     response.status(404).json({ error: "Event not found" });
@@ -54,8 +54,8 @@ router.patch("/:id", (request, response) => {
   response.status(200).json(event);
 });
 
-router.delete("/:id", (request, response) => {
-  if (!deleteEvent(request.params.id)) {
+router.delete("/:id", async (request, response) => {
+  if (!(await deleteEvent(request.params.id))) {
     response.status(404).json({ error: "Event not found" });
     return;
   }

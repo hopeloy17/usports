@@ -1,8 +1,9 @@
 import request from "supertest";
 import { app } from "../src/app";
 import * as eventRepository from "../src/repositories/eventRepository";
-import { resetEvents } from "../src/repositories/eventRepository";
-import { response } from "express";
+import * as database from "../src/db";
+import { mockEvents } from "../src/data/events";
+import { Event } from "../src/types/event";
 
 const validEvent = {
   sport: "Volleyball",
@@ -13,8 +14,80 @@ const validEvent = {
   host: "Taylor R.",
 };
 
+let testEvents: Event[];
+
+jest.spyOn(eventRepository, "getAllEvents");
+jest.spyOn(eventRepository, "getEventById");
+jest.spyOn(eventRepository, "addEvent");
+jest.spyOn(eventRepository, "updateEvent");
+jest.spyOn(eventRepository, "deleteEvent");
+jest.spyOn(eventRepository, "addEventParticipant");
+jest.spyOn(eventRepository, "removeEventParticipant");
+jest.spyOn(database, "getParticipantStatus");
+
 beforeEach(() => {
-  resetEvents();
+  testEvents = structuredClone(mockEvents);
+
+  jest.mocked(eventRepository.getAllEvents).mockImplementation(async (filters = {}) =>
+    testEvents.filter((event) =>
+      (typeof filters.sport !== "string" ||
+        event.sport.toLowerCase() === filters.sport.toLowerCase()) &&
+      (typeof filters.date !== "string" ||
+        event.dateTime.startsWith(filters.date)),
+    ),
+  );
+  jest.mocked(eventRepository.getEventById).mockImplementation(async (id) =>
+    testEvents.find((event) => event.id === id),
+  );
+  jest.mocked(eventRepository.addEvent).mockImplementation((event) => {
+    testEvents = [...testEvents, event];
+    return event;
+  });
+  jest.mocked(eventRepository.updateEvent).mockImplementation(async (id, updates) => {
+    const event = testEvents.find((candidate) => candidate.id === id);
+    if (!event) return undefined;
+    const updated = { ...event, ...updates };
+    testEvents = testEvents.map((candidate) => candidate.id === id ? updated : candidate);
+    return updated;
+  });
+  jest.mocked(eventRepository.deleteEvent).mockImplementation(async (id) => {
+    if (!testEvents.some((event) => event.id === id)) return false;
+    testEvents = testEvents.filter((event) => event.id !== id);
+    return true;
+  });
+  jest.mocked(database.getParticipantStatus).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    return event && (event.hostId === userId || event.roster.includes(userId))
+      ? "going"
+      : null;
+  });
+  jest.mocked(eventRepository.addEventParticipant).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    if (!event) return undefined;
+    const updated = {
+      ...event,
+      joinedCount: event.joinedCount + 1,
+      roster: [...event.roster, userId],
+      status:
+        event.maxPlayers !== undefined && event.joinedCount + 1 >= event.maxPlayers
+          ? "full" as const
+          : event.status,
+    };
+    testEvents = testEvents.map((candidate) => candidate.id === eventId ? updated : candidate);
+    return updated;
+  });
+  jest.mocked(eventRepository.removeEventParticipant).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    if (!event) return undefined;
+    const updated = {
+      ...event,
+      joinedCount: event.joinedCount - 1,
+      roster: event.roster.filter((participant) => participant !== userId),
+      status: event.status === "full" ? "open" as const : event.status,
+    };
+    testEvents = testEvents.map((candidate) => candidate.id === eventId ? updated : candidate);
+    return updated;
+  });
 });
 
 describe("GET /api/health", () => {
@@ -198,7 +271,7 @@ describe("POST /api/events/:id/join", () => {
   it("adds a participant to an event", async () => {
     const response = await request(app)
       .post("/api/events/1/join")
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(7);
@@ -208,7 +281,7 @@ describe("POST /api/events/:id/join", () => {
   it("returns 404 when joining an unknown event", async () => {
     const response = await request(app)
       .post("/api/events/unknown/join")
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Event not found" });
@@ -217,16 +290,16 @@ describe("POST /api/events/:id/join", () => {
   it("rejects joining without a participant", async () => {
     const response = await request(app)
       .post("/api/events/1/join")
-      .send({ participant: "" });
+      .set("x-user-id", "");
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "Participant is required" });
+    expect(response.body).toEqual({ error: "User ID is required" });
   });
 
   it("rejects duplicate participants", async () => {
     const response = await request(app)
       .post("/api/events/1/join")
-      .send({ participant: "Sarah M." });
+      .set("x-user-id", "Sarah M.");
 
     expect(response.status).toBe(409);
   });
@@ -238,7 +311,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "Event is full" });
@@ -250,7 +323,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("full");
@@ -264,7 +337,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "Event is cancelled" });
@@ -277,7 +350,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(2);
@@ -288,7 +361,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("removes a participant from an event", async () => {
     const response = await request(app)
       .delete("/api/events/1/join")
-      .send({ participant: "Sarah M." });
+      .set("x-user-id", "Sarah M.");
 
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(5);
@@ -301,11 +374,11 @@ describe("DELETE /api/events/:id/join", () => {
       .send({ ...validEvent, minPlayers: 2, maxPlayers: 2 });
     await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     const response = await request(app)
       .delete(`/api/events/${created.body.id}/join`)
-      .send({ participant: "Jordan P." });
+      .set("x-user-id", "Jordan P.");
 
     expect(response.body.status).toBe("open");
   });
@@ -313,7 +386,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("returns 404 when leaving an unknown event", async () => {
     const response = await request(app)
       .delete("/api/events/unknown/join")
-      .send({ participant: "Sarah M." });
+      .set("x-user-id", "Sarah M.");
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Event not found" });
@@ -322,7 +395,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("returns 404 when participant is not in the roster", async () => {
     const response = await request(app)
       .delete("/api/events/1/join")
-      .send({ participant: "NonExistentPlayer" });
+      .set("x-user-id", "NonExistentPlayer");
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Participant not found" });
@@ -331,7 +404,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("rejects when the host attempts to leave the event", async () => {
     const response = await request(app)
       .delete("/api/events/1/join")
-      .send({ participant: "John D." });
+      .set("x-user-id", "host-john");
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "The host cannot leave the event" });
@@ -340,7 +413,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("no longer accepts the old POST /leave route", async () => {
     const response = await request(app)
       .post("/api/events/1/leave")
-      .send({ participant: "Sarah M." });
+      .set("x-user-id", "Sarah M.");
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Route not found" });
@@ -348,11 +421,6 @@ describe("DELETE /api/events/:id/join", () => {
 });
 
 describe("Unexpected errors", () => {
-  // Runs even when the test fails, so the fake failure never leaks into other tests
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
   it("returns 500 with a generic message when something unexpected fails", async () => {
     jest.spyOn(eventRepository, "getAllEvents").mockImplementation(() => {
       throw new Error("Database connection lost");
