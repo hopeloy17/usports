@@ -1,11 +1,13 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import * as eventApi from "../../../api/events";
+import * as profileApi from "../../../api/profile";
 import { EventProvider, useEvents } from "../../../context/EventContext";
 import { ProfileProvider } from "../../../context/ProfileContext";
 import ProfileScreen from "../profile";
 
 jest.mock("../../../api/events");
+jest.mock("../../../api/profile");
 
 const mockServerEvents: eventApi.ServerEvent[] = [
   {
@@ -17,6 +19,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
+    status: "open",
     host: "John D.",
     roster: [
       "John D.",
@@ -36,6 +39,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 2,
     minPlayers: 14,
     skillLevel: "Beginner",
+    status: "open",
     host: "Alex B.",
     roster: ["Alex B.", "Gary L."],
   },
@@ -52,6 +56,24 @@ const renderWithProviders = async (component: React.ReactElement) => {
 describe("ProfileScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (profileApi.fetchProfile as jest.Mock).mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "You",
+      schoolEmail: "student@calvin.edu",
+      classYear: 2027,
+      bio: null,
+      profilePhotoUrl: null,
+    });
+    (profileApi.updateProfileApi as jest.Mock).mockImplementation(
+      async (_userId: string, updates: profileApi.UpdateProfileInput) => ({
+        id: "11111111-1111-4111-8111-111111111111",
+        name: updates.name ?? "You",
+        schoolEmail: "student@calvin.edu",
+        classYear: updates.classYear ?? 2027,
+        bio: updates.bio ?? null,
+        profilePhotoUrl: null,
+      }),
+    );
     (eventApi.fetchEvents as jest.Mock).mockResolvedValue(
       mockServerEvents.map((e) => ({ ...e, roster: [...e.roster] })),
     );
@@ -90,6 +112,46 @@ describe("ProfileScreen", () => {
 
     expect(await findByText("Jordan K.")).toBeTruthy();
     expect(await findByText("Advanced")).toBeTruthy();
+    expect(profileApi.updateProfileApi).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ name: "Jordan K." }),
+    );
+  });
+
+  it("shows a clear error when server rejects profile update on validation failure", async () => {
+    (profileApi.updateProfileApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Invalid name"),
+    );
+
+    const { findByText, getByText, getByPlaceholderText, findByTestId } =
+      await renderWithProviders(<ProfileScreen />);
+
+    await act(async () => fireEvent.press(getByText("Edit Profile")));
+    await act(async () =>
+      fireEvent.changeText(getByPlaceholderText("Your name"), "Invalid Name!"),
+    );
+    await act(async () => fireEvent.press(getByText("Save")));
+
+    const errorMessage = await findByTestId("profile-error-message");
+    expect(errorMessage).toHaveTextContent("Invalid name");
+  });
+
+  it("shows a clear error when server returns an internal server error (500)", async () => {
+    (profileApi.updateProfileApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Internal server error"),
+    );
+
+    const { findByText, getByText, getByPlaceholderText, findByTestId } =
+      await renderWithProviders(<ProfileScreen />);
+
+    await act(async () => fireEvent.press(getByText("Edit Profile")));
+    await act(async () =>
+      fireEvent.changeText(getByPlaceholderText("Your name"), "Sam P."),
+    );
+    await act(async () => fireEvent.press(getByText("Save")));
+
+    const errorMessage = await findByTestId("profile-error-message");
+    expect(errorMessage).toHaveTextContent("Internal server error");
   });
 
   it("lists games the user has joined", async () => {

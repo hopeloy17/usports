@@ -17,6 +17,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 6,
     minPlayers: 10,
     skillLevel: "Intermediate",
+    status: "open",
     host: "John D.",
     roster: [
       "John D.",
@@ -36,6 +37,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     joinedCount: 2,
     minPlayers: 14,
     skillLevel: "Beginner",
+    status: "open",
     host: "Alex B.",
     roster: ["Alex B.", "Gary L."],
   },
@@ -79,6 +81,40 @@ describe("EventFeedScreen", () => {
 
     expect(await findByText("6/10 joined")).toBeTruthy();
     expect(await findByText("2/14 joined")).toBeTruthy();
+  });
+});
+
+describe("EventFeedScreen cancellation notice", () => {
+  // The feed treats the signed-in student as "You" when there is no ProfileProvider
+  const joinedAndCancelled = { ...mockServerEvents[0], status: "cancelled" as const, roster: ["John D.", "You"] };
+
+  it("tells the student when a game they joined was cancelled", async () => {
+    (eventApi.fetchEvents as jest.Mock).mockResolvedValue([joinedAndCancelled]);
+    const { findByTestId } = await renderWithProvider(<EventFeedScreen />);
+
+    expect(await findByTestId("cancelled-notice")).toHaveTextContent(
+      "A game you joined was cancelled: John D.'s Basketball Game",
+    );
+  });
+
+  it("stays quiet about cancelled games the student did not join", async () => {
+    (eventApi.fetchEvents as jest.Mock).mockResolvedValue([
+      { ...joinedAndCancelled, roster: ["John D."] },
+    ]);
+    const { findByText, queryByTestId } = await renderWithProvider(<EventFeedScreen />);
+
+    await findByText("📍 Spoelhof Fieldhouse");
+    expect(queryByTestId("cancelled-notice")).toBeNull();
+  });
+
+  it("stays quiet about joined games that are still on", async () => {
+    (eventApi.fetchEvents as jest.Mock).mockResolvedValue([
+      { ...joinedAndCancelled, status: "open" },
+    ]);
+    const { findByText, queryByTestId } = await renderWithProvider(<EventFeedScreen />);
+
+    await findByText("📍 Spoelhof Fieldhouse");
+    expect(queryByTestId("cancelled-notice")).toBeNull();
   });
 });
 

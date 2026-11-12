@@ -20,6 +20,16 @@ export const colors = {
   information: "#3835DC"
 };
 
+// The three states a game can be in; the server decides which one applies
+export type EventStatus = "open" | "full" | "cancelled";
+
+// Badge background for each status: open = green, full = blue, cancelled = red
+export const statusColors: Record<EventStatus, string> = {
+  open: colors.success,
+  full: colors.information,
+  cancelled: colors.danger,
+};
+
 // Styles used on more than one screen/component.
 // Compose with local styles for tweaks, e.g. style={[commonStyles.card, styles.myCard]}
 // Note: children of <Link asChild> need StyleSheet.flatten([...]) instead of an array.

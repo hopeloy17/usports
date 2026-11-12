@@ -2,6 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Event } from "../context/EventContext";
 import { colors, commonStyles } from "../styles/common";
+import StatusBadge from "./StatusBadge";
 import { formatEventDateTime } from "../utils/formatEventTime";
 
 type GameCardProps = {
@@ -13,11 +14,12 @@ export default function GameCard({ game, onPress }: GameCardProps) {
   { /* Return a card that displays the game details and navigates to the event when pressed */ }
   return (
     <Link href={`/event/${game.id}`} asChild>
-      <Pressable style={commonStyles.card} onPress={onPress}>
+      <Pressable testID={`game-card-${game.id}`} style={commonStyles.card} onPress={onPress}>
         <View style={styles.cardHeader}>
           <Text style={commonStyles.sportText}>{game.sport}</Text>
           <Text style={commonStyles.skillBadge}>{game.skillLevel}</Text>
         </View>
+        <StatusBadge status={game.status} />
 
         <Text style={[commonStyles.detailText, styles.detailText]}>📍 {game.venue}</Text>
         <Text style={[commonStyles.detailText, styles.detailText]}>🕒 {formatEventDateTime(game.dateTime)}</Text>
@@ -29,7 +31,7 @@ export default function GameCard({ game, onPress }: GameCardProps) {
         ) : null}
 
         <View style={styles.footer}>
-          <Text style={commonStyles.headcountText}>
+          <Text testID={`game-card-headcount-${game.id}`} style={commonStyles.headcountText}>
             {game.joinedCount}/{game.minPlayers} joined
           </Text>
           <Text style={styles.joinPrompt}>View Details →</Text>

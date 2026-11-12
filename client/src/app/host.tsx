@@ -77,16 +77,40 @@ export default function CreateScreen() {
   const [minPlayers, setMinPlayers] = useState(10);
   const [maxPlayers, setMaxPlayers] = useState<number | undefined>(undefined);
   const [skillLevel, setSkillLevel] = useState<SkillLevel>("Intermediate");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Combine the separate date and time selections into the single ISO string
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setErrorMessage(null);
+
     const finalVenue =
       venue === "Custom location"
-        ? (customVenue.trim() || "Custom location")
+        ? customVenue.trim()
         : venue;
-    const finalMinPlayers = Math.max(2, Number(minPlayers) || 10);
-    const finalMaxPlayers = maxPlayers || undefined;
-    const finalHost = profile?.displayName?.trim() || "You";
+
+    if (venue === "Custom location" && !finalVenue) {
+      setErrorMessage("Please specify a custom location");
+      return;
+    }
+
+    const finalMinPlayers = Number(minPlayers);
+    if (!finalMinPlayers || finalMinPlayers < 2) {
+      setErrorMessage("Minimum players must be at least 2");
+      return;
+    }
+
+    const finalMaxPlayers = maxPlayers ? Number(maxPlayers) : undefined;
+    if (finalMaxPlayers !== undefined && finalMinPlayers > finalMaxPlayers) {
+      setErrorMessage("Minimum players cannot be greater than maximum players");
+      return;
+    }
+
+    const todayStr = toDateString(new Date());
+    if (date < todayStr) {
+      setErrorMessage("Event date cannot be in the past");
+      return;
+    }
 
     const [year, month, day] = date.split("-").map(Number);
     const dateTime = new Date(
@@ -98,23 +122,37 @@ export default function CreateScreen() {
       0,
       0,
     );
-    const finalDateTime = Number.isNaN(dateTime.getTime())
-      ? new Date().toISOString()
-      : dateTime.toISOString();
 
-    createEvent({
-      sport,
-      venue: finalVenue,
-      description: description.trim(),
-      dateTime: finalDateTime,
-      minPlayers: finalMinPlayers,
-      maxPlayers: finalMaxPlayers,
-      skillLevel,
-      host: finalHost,
-    });
+    if (Number.isNaN(dateTime.getTime())) {
+      setErrorMessage("Invalid date or time");
+      return;
+    }
 
-    // Close the popup and take the user to the homepage feed
-    router.replace("/(tabs)");
+    const finalDateTime = dateTime.toISOString();
+    const finalHost = profile?.displayName?.trim() || "You";
+
+    setIsSubmitting(true);
+    try {
+      await createEvent({
+        sport,
+        venue: finalVenue,
+        description: description.trim(),
+        dateTime: finalDateTime,
+        minPlayers: finalMinPlayers,
+        maxPlayers: finalMaxPlayers,
+        skillLevel,
+        host: finalHost,
+      });
+
+      // Close the popup and take the user to the homepage feed
+      router.replace("/(tabs)");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create event";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -151,6 +189,7 @@ export default function CreateScreen() {
           {SPORTS.map((option) => (
             <Pressable
               key={option}
+              testID={`sport-option-${option}`}
               onPress={() => setSport(option)}
               style={[
                 styles.Button,
@@ -220,6 +259,7 @@ export default function CreateScreen() {
         <Text style={styles.label}>Date</Text>
         {/* minDate blocks scheduling games in the past */}
         <Calendar
+          testID="event-calendar"
           minDate={today}
           onDayPress={(day: { dateString: string }) => setDate(day.dateString)}
           markedDates={{
@@ -262,6 +302,7 @@ export default function CreateScreen() {
         <Text style={styles.label}>Minimum Players</Text>
         <View style={styles.textInputWrapper}>
           <TextInput keyboardType="number-pad"
+            testID="min-players-input"
             value={minPlayers.toString()}
             style={styles.textInput}
             onChangeText={(text) => setMinPlayers(+text.replace(/[^0-9]/g, ''))}
@@ -271,6 +312,7 @@ export default function CreateScreen() {
         <Text style={styles.label}>Maximum Players</Text>
         <View style={styles.textInputWrapper}>
           <TextInput keyboardType="number-pad"
+            testID="max-players-input"
             value={(maxPlayers || '').toString()}
             style={styles.textInput}
             onChangeText={(text) => setMaxPlayers(+text.replace(/[^0-9]/g, ''))}
@@ -307,6 +349,14 @@ export default function CreateScreen() {
       </View>
 
       {/* Submits the form or returns to the homepage */}
+      {errorMessage && (
+        <View style={styles.errorContainer} testID="error-banner">
+          <Text testID="error-message" style={styles.errorText}>
+            {errorMessage}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.actionRow}>
         <Pressable
           style={[commonStyles.button, styles.backButton, styles.secondaryButton]}
@@ -316,10 +366,14 @@ export default function CreateScreen() {
           <Text style={styles.secondaryButtonText}>Back</Text>
         </Pressable>
         <Pressable
-          style={[commonStyles.button, styles.submitButton]}
+          testID="create-game-button"
+          style={[commonStyles.button, styles.submitButton, isSubmitting && styles.disabled]}
           onPress={handleSubmit}
+          disabled={isSubmitting}
         >
-          <Text style={commonStyles.buttonText}>Create Game</Text>
+          <Text style={commonStyles.buttonText}>
+            {isSubmitting ? "Creating Game..." : "Create Game"}
+          </Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -418,6 +472,23 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 16,
     fontWeight: "bold",
+  },
+  errorContainer: {
+    marginHorizontal: 16,
+    padding: 12,
+    backgroundColor: "#FEE2E2",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: "#B91C1C",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  disabled: {
+    opacity: 0.6,
   },
   headerBackButton: {
     paddingHorizontal: 12,

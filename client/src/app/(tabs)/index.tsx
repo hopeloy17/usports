@@ -86,6 +86,10 @@ export default function EventFeedScreen() {
   );
   const dateOptions = useMemo(getUpcomingDateOptions, []);
   const filteredEvents = filterEvents(events, filters);
+  // Games the student joined that the host has since cancelled
+  const cancelledJoinedGames = events.filter(
+    (event) => event.isJoinedByMe && event.status === "cancelled",
+  );
   const activeFilterCount = [filters.sport, filters.skillLevel, filters.date].filter(Boolean).length;
   const filtersButtonText = activeFilterCount > 0 ? `Filters (${activeFilterCount})` : "Filters";
 
@@ -144,8 +148,15 @@ export default function EventFeedScreen() {
         </View>
       </Modal>
 
+      {cancelledJoinedGames.map((game) => (
+        <Text key={game.id} testID="cancelled-notice" style={styles.cancelledNotice}>
+          A game you joined was cancelled: {game.name}
+        </Text>
+      ))}
+
       {/* Display the list of events in a scrollable list */}
       <FlatList
+        testID="feed-list"
         data={filteredEvents}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
@@ -188,6 +199,17 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontWeight: "500", color: colors.textSecondary },
   chipTextSelected: { color: "white" },
+  cancelledNotice: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    overflow: "hidden",
+    fontSize: 14,
+    fontWeight: "600",
+    color: "white",
+    backgroundColor: colors.danger,
+  },
   listContent: { padding: 16, gap: 16 },
   emptyText: { textAlign: "center", marginTop: 32, fontSize: 16, color: "#666" },
 });
