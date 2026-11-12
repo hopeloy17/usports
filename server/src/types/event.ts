@@ -10,7 +10,8 @@ export type Event = {
   joinedCount: number;
   minPlayers: number;
   maxPlayers?: number;
-  skillLevel: SkillLevel;
+  // skillLevel: SkillLevel;
+  skillLevel: SkillLevel | null;
   status: EventStatus;
   host: string;
   roster: string[];

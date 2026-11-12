@@ -1,8 +1,14 @@
 import {
   addEvent,
   getEventById,
-  resetEvents,
+  getAllEvents,
+  addEventParticipant,
+  removeEventParticipant,
 } from "../../src/repositories/eventRepository";
+import * as eventRepository from "../../src/repositories/eventRepository";
+import * as database from "../../src/db";
+import { getParticipantStatus } from "../../src/db";
+import { mockEvents } from "../../src/data/events";
 import { ConflictError, NotFoundError, ValidationError } from "../../src/services/errors";
 import {
   createEvent,
@@ -32,8 +38,64 @@ function makeEvent(overrides: Partial<Event>): Event {
   };
 }
 
+let testEvents: Event[];
+
+jest.spyOn(eventRepository, "getEventById");
+jest.spyOn(eventRepository, "getAllEvents");
+jest.spyOn(eventRepository, "addEvent");
+jest.spyOn(eventRepository, "addEventParticipant");
+jest.spyOn(eventRepository, "removeEventParticipant");
+jest.spyOn(database, "getParticipantStatus");
+
 beforeEach(() => {
-  resetEvents();
+  testEvents = structuredClone(mockEvents);
+
+  jest.mocked(eventRepository.getEventById).mockImplementation(async (id) =>
+    testEvents.find((event) => event.id === id),
+  );
+  jest.mocked(eventRepository.getAllEvents).mockImplementation(async (filters = {}) =>
+    testEvents.filter((event) =>
+      (typeof filters.sport !== "string" ||
+        event.sport.toLowerCase() === filters.sport.toLowerCase()) &&
+      (typeof filters.date !== "string" ||
+        event.dateTime.startsWith(filters.date)),
+    ),
+  );
+  jest.mocked(eventRepository.addEvent).mockImplementation((event) => {
+    testEvents = [...testEvents, event];
+    return event;
+  });
+  jest.mocked(database.getParticipantStatus).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    return event?.roster.includes(userId) ? "going" : null;
+  });
+  jest.mocked(eventRepository.addEventParticipant).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    if (!event) return undefined;
+    const updated = {
+      ...event,
+      joinedCount: event.joinedCount + 1,
+      roster: [...event.roster, userId],
+      status:
+        event.maxPlayers !== undefined && event.joinedCount + 1 >= event.maxPlayers
+          ? "full" as const
+          : event.status,
+    };
+    testEvents = testEvents.map((candidate) => candidate.id === eventId ? updated : candidate);
+    return updated;
+  });
+  jest.mocked(eventRepository.removeEventParticipant).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    if (!event) return undefined;
+    const updated = {
+      ...event,
+      joinedCount: event.joinedCount - 1,
+      roster: event.roster.filter((participant) => participant !== userId),
+      status: event.status === "full" ? "open" as const : event.status,
+    };
+    testEvents = testEvents.map((candidate) => candidate.id === eventId ? updated : candidate);
+    return updated;
+  });
 });
 
 describe("joinEvent", () => {
