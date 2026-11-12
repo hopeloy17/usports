@@ -66,7 +66,7 @@ describe("getEventRows", () => {
     });
 
     expect(mockedSupabase.from).toHaveBeenCalledWith("events");
-    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("event_participants"));
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("sport:sports!inner(name)"));
     expect(query.eq).toHaveBeenCalledWith("sports.name", "Basketball");
     expect(query.gte).toHaveBeenCalledWith(
       "start_time",

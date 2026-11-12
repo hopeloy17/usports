@@ -28,7 +28,7 @@ export async function getEventRows(
       skill_level,
       status,
       host:users!events_host_id_fkey(name),
-      sport:sports(name),
+      sport:sports!inner(name),
       venue:venues(name),
       participants:event_participants(status, user:users(name))
     `);
