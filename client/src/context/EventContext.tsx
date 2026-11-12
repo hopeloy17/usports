@@ -14,6 +14,7 @@ import {
   leaveEventApi,
   ServerEvent,
 } from "../api/events";
+import { EventStatus } from "../styles/common";
 import { ProfileContext, SkillLevel } from "./ProfileContext";
 
 // Define the shape of our Event data
@@ -27,6 +28,7 @@ export type Event = {
   minPlayers: number;
   maxPlayers?: number;
   skillLevel: SkillLevel;
+  status: EventStatus;
   host: string;
   roster: string[];
   description?: string;

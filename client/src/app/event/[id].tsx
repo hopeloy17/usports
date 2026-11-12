@@ -1,5 +1,6 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import StatusBadge from "../../components/StatusBadge";
 import { useEvents } from "../../context/EventContext";
 import { formatEventDateTime } from "../../utils/formatEventTime";
 import { colors, commonStyles } from "../../styles/common";
@@ -24,6 +25,9 @@ export default function EventDetailsScreen() {
         <Text style={styles.subtitle}>📍 {event.venue}</Text>
         <Text style={styles.subtitle}>🕒 {formatEventDateTime(event.dateTime)}</Text>
         <Text style={[commonStyles.skillBadge, styles.skillBadge]}>{event.skillLevel}</Text>
+        <View style={styles.statusBadgeRow}>
+          <StatusBadge status={event.status} />
+        </View>
       </View>
 
       {Boolean(event.description) && (
@@ -35,7 +39,7 @@ export default function EventDetailsScreen() {
 
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Game Status</Text>
-        <Text style={styles.statusText}>
+        <Text testID="event-headcount" style={styles.statusText}>
           {event.joinedCount}/{event.minPlayers} players joined
         </Text>
         {event.joinedCount < event.minPlayers && (
@@ -46,6 +50,7 @@ export default function EventDetailsScreen() {
       </View>
 
       <Pressable
+        testID="join-leave-button"
         style={[
           commonStyles.button,
           styles.joinButton,
@@ -67,7 +72,7 @@ export default function EventDetailsScreen() {
       <View style={styles.rosterSection}>
         <Text style={commonStyles.sectionTitle}>Roster</Text>
         {event.roster.map((player, index) => (
-          <View key={index} style={styles.rosterItem}>
+          <View key={index} testID={`roster-item-${player}`} style={styles.rosterItem}>
             <Text style={styles.rosterName}>
               {player} {player === event.host ? "(Host)" : ""}
             </Text>
@@ -89,6 +94,7 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: 16, color: colors.textSecondary, marginBottom: 12 },
   skillBadge: { alignSelf: "flex-start", fontSize: 14, paddingHorizontal: 10 },
+  statusBadgeRow: { marginTop: 8 },
   descriptionCard: { padding: 16 },
   descriptionTitle: {
     fontSize: 16,

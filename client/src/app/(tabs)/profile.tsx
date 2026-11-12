@@ -11,12 +11,14 @@ import GameCard from "../../components/GameCard";
 import { colors, commonStyles } from "../../styles/common";
 
 export default function ProfileScreen() {
-  const { profile, updateProfile } = useProfile();
+  const { profile, updateProfile, error: profileError } = useProfile();
   const { events } = useEvents();
 
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState(profile.displayName);
   const [draftSkill, setDraftSkill] = useState<SkillLevel>(profile.skillLevel);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const myGames = events.filter((e) => e.isJoinedByMe);
   const initials = profile.displayName.trim().charAt(0).toUpperCase() || "?";
@@ -24,14 +26,29 @@ export default function ProfileScreen() {
   const startEditing = () => {
     setDraftName(profile.displayName);
     setDraftSkill(profile.skillLevel);
+    setErrorMessage(null);
     setIsEditing(true);
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     const name = draftName.trim();
-    if (!name) return;
-    updateProfile({ displayName: name, skillLevel: draftSkill });
-    setIsEditing(false);
+    if (!name) {
+      setErrorMessage("Display name cannot be blank");
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+    try {
+      await updateProfile({ displayName: name, skillLevel: draftSkill });
+      setIsEditing(false);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update profile";
+      setErrorMessage(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -45,15 +62,32 @@ export default function ProfileScreen() {
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.identityText}>
-            <Text style={styles.name}>{profile.displayName}</Text>
+            <Text testID="profile-name" style={styles.name}>{profile.displayName}</Text>
             <Text style={styles.email}>{profile.email}</Text>
           </View>
         </View>
 
+        {profileError && !isEditing && (
+          <View style={styles.errorContainer}>
+            <Text testID="profile-load-error" style={styles.errorText}>
+              {profileError}
+            </Text>
+          </View>
+        )}
+
         {isEditing ? (
           <View style={styles.form}>
+            {errorMessage && (
+              <View style={styles.errorContainer}>
+                <Text testID="profile-error-message" style={styles.errorText}>
+                  {errorMessage}
+                </Text>
+              </View>
+            )}
+
             <Text style={styles.label}>Display Name</Text>
             <TextInput
+              testID="display-name-input"
               style={styles.input}
               value={draftName}
               onChangeText={setDraftName}
@@ -66,6 +100,7 @@ export default function ProfileScreen() {
               {SKILL_LEVELS.map((level) => (
                 <Pressable
                   key={level}
+                  testID={`skill-option-${level}`}
                   style={[
                     styles.skillOption,
                     draftSkill === level && styles.skillOptionSelected,
@@ -87,16 +122,26 @@ export default function ProfileScreen() {
             <View style={styles.buttonRow}>
               <Pressable
                 style={[commonStyles.button, styles.button, styles.secondaryButton]}
-                onPress={() => setIsEditing(false)}
+                onPress={() => {
+                  setErrorMessage(null);
+                  setIsEditing(false);
+                }}
               >
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[commonStyles.button, styles.button, !draftName.trim() && styles.disabled]}
+                testID="save-profile-button"
+                style={[
+                  commonStyles.button,
+                  styles.button,
+                  (!draftName.trim() || isSaving) && styles.disabled,
+                ]}
                 onPress={saveProfile}
-                disabled={!draftName.trim()}
+                disabled={!draftName.trim() || isSaving}
               >
-                <Text style={commonStyles.buttonText}>Save</Text>
+                <Text style={commonStyles.buttonText}>
+                  {isSaving ? "Saving..." : "Save"}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -107,6 +152,7 @@ export default function ProfileScreen() {
               <Text style={commonStyles.skillBadge}>{profile.skillLevel}</Text>
             </View>
             <Pressable
+              testID="edit-profile-button"
               style={[commonStyles.button, styles.button, styles.secondaryButton]}
               onPress={startEditing}
             >
@@ -195,6 +241,19 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { color: colors.primary, fontSize: 16, fontWeight: "bold" },
   disabled: { opacity: 0.5 },
+  errorContainer: {
+    padding: 10,
+    backgroundColor: "#FEE2E2",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: "#B91C1C",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   sectionTitle: { marginHorizontal: 16 },
   gameList: { paddingHorizontal: 16, gap: 12 },
   emptyText: { fontSize: 14, color: colors.textMuted },
