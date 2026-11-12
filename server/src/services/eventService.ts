@@ -116,6 +116,7 @@ export async function createEvent(input: unknown): Promise<Event> {
     maxPlayers: input.maxPlayers,
     skillLevel: input.skillLevel,
     status: "open",
+    hostId: input.host,
     host: input.host,
     roster: [input.host],
     ...(typeof input.description === "string" && input.description.length > 0
@@ -161,6 +162,10 @@ export async function leaveEvent(eventId: string, userId: string): Promise<Event
 
   if ((await getParticipantStatus(eventId, userId)) !== "going") {
     throw new NotFoundError("Participant not found");
+  }
+
+  if (userId === event.hostId) {
+    throw new ConflictError("The host cannot leave the event");
   }
 
   const updatedEvent = await removeEventParticipant(eventId, userId);

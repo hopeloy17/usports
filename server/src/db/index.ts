@@ -19,6 +19,7 @@ export async function getEventRows(
     .from('events')
     .select(`
       id,
+      host_id,
       title,
       start_time,
       description,

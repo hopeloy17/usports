@@ -46,6 +46,7 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     maxPlayers: 3,
     skillLevel: "Beginner",
     status: "open",
+    hostId: "host-id",
     host: "Host",
     roster: ["Host"],
     ...overrides,

@@ -47,6 +47,7 @@ describe("getEventRows", () => {
           max_players: 6,
           skill_level: null,
           status: "open",
+          host_id: "user-1",
           host: [{ name: "Alex Johnson" }],
           sport: [{ name: "Basketball" }],
           venue: [{ name: "Fieldhouse" }],

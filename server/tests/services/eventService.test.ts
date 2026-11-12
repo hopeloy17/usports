@@ -32,6 +32,7 @@ function makeEvent(overrides: Partial<Event>): Event {
     minPlayers: 2,
     skillLevel: "Beginner",
     status: "open",
+    hostId: "host-id",
     host: "Host",
     roster: ["Host"],
     ...overrides,
@@ -67,7 +68,7 @@ beforeEach(() => {
   });
   jest.mocked(database.getParticipantStatus).mockImplementation(async (eventId, userId) => {
     const event = testEvents.find((candidate) => candidate.id === eventId);
-    return event?.roster.includes(userId) ? "going" : null;
+    return event && (event.hostId === userId || event.roster.includes(userId)) ? "going" : null;
   });
   jest.mocked(eventRepository.addEventParticipant).mockImplementation(async (eventId, userId) => {
     const event = testEvents.find((candidate) => candidate.id === eventId);
@@ -109,7 +110,7 @@ describe("joinEvent", () => {
   it("saves the change", async () => {
     await joinEvent("1", "Jordan P.");
 
-    expect(getEventById("1")?.roster).toContain("Jordan P.");
+    expect((await getEventById("1"))?.roster).toContain("Jordan P.");
   });
 
   it("marks the event full when the last spot is taken", async () => {
@@ -131,7 +132,7 @@ describe("joinEvent", () => {
     const result = joinEvent("1", "   ");
 
     await expect(result).rejects.toThrow(ValidationError);
-    await expect(result).rejects.toThrow("Participant is required");
+    await expect(result).rejects.toThrow("User ID is required");
   });
 
   it("rejects joining a full event", async () => {
@@ -164,8 +165,8 @@ describe("joinEvent", () => {
 
     await expect(joinEvent("full", "Jordan P.")).rejects.toThrow();
 
-    expect(getEventById("full")?.roster).toEqual(["Host", "Sam"]);
-    expect(getEventById("full")?.joinedCount).toBe(2);
+    expect((await getEventById("full"))?.roster).toEqual(["Host", "Sam"]);
+    expect((await getEventById("full"))?.joinedCount).toBe(2);
   });
 });
 
@@ -208,7 +209,7 @@ describe("leaveEvent", () => {
   });
 
   it("rejects the host leaving their own event", async () => {
-    const result = leaveEvent("1", "John D.");
+    const result = leaveEvent("1", "host-john");
 
     await expect(result).rejects.toThrow(ConflictError);
     await expect(result).rejects.toThrow("The host cannot leave the event");

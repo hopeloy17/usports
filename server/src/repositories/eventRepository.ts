@@ -14,6 +14,7 @@ user: { name: string };
 
 export type DatabaseEventRow = {
 id: string;
+host_id: string;
 title: string;
 start_time: string;
 description: string | null;
@@ -48,6 +49,7 @@ const activeParticipants = row.participants.filter(
 
   return {
   id: row.id,
+  hostId: row.host_id,
   name: row.title,
   sport: row.sport.name,
   venue: row.venue.name,

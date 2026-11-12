@@ -25,6 +25,7 @@ const updatedEvent = {
   maxPlayers: 6,
   skillLevel: null,
   status: "open" as const,
+  hostId: "user-1",
   host: "Alex Johnson",
   roster: ["Alex Johnson", "Jordan Smith"],
 };

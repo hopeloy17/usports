@@ -13,6 +13,7 @@ export type Event = {
   // skillLevel: SkillLevel;
   skillLevel: SkillLevel | null;
   status: EventStatus;
+  hostId: string;
   host: string;
   roster: string[];
   description?: string;
