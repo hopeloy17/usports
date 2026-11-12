@@ -11,11 +11,13 @@ jest.mock("../../src/db", () => ({
   addParticipant: jest.fn(),
   getEventRows: jest.fn(),
   removeParticipant: jest.fn(),
+  updateEventStatus: jest.fn(),
 }));
 
 const mockedGetEventRows = jest.mocked(database.getEventRows);
 const mockedAddParticipant = jest.mocked(database.addParticipant);
 const mockedRemoveParticipant = jest.mocked(database.removeParticipant);
+const mockedUpdateEventStatus = jest.mocked(database.updateEventStatus);
 
 describe("mapDatabaseEvent", () => {
   it("maps the database event shape and preserves a null skill level", () => {
@@ -116,6 +118,7 @@ describe("event repository reads", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedUpdateEventStatus.mockResolvedValue();
   });
 
   it("loads and maps all event rows with filters", async () => {
@@ -168,5 +171,40 @@ describe("event repository reads", () => {
     );
 
     expect(mockedRemoveParticipant).toHaveBeenCalledWith("event-1", "user-1");
+  });
+
+  it("persists full status when a join reaches capacity", async () => {
+    const fullRow = {
+      ...row,
+      max_players: 1,
+      participants: [
+        { status: "going" as const, user: { name: "Alex Johnson" } },
+      ],
+    };
+    mockedAddParticipant.mockResolvedValue({});
+    mockedGetEventRows.mockResolvedValue([fullRow]);
+
+    const result = await addEventParticipant("event-1", "user-2");
+
+    expect(result?.status).toBe("full");
+    expect(mockedUpdateEventStatus).toHaveBeenCalledWith("event-1", "full");
+  });
+
+  it("reopens a full event after a participant leaves", async () => {
+    const fullRow = {
+      ...row,
+      status: "full" as const,
+      max_players: 2,
+      participants: [
+        { status: "going" as const, user: { name: "Alex Johnson" } },
+      ],
+    };
+    mockedRemoveParticipant.mockResolvedValue({});
+    mockedGetEventRows.mockResolvedValue([fullRow]);
+
+    const result = await removeEventParticipant("event-1", "user-1");
+
+    expect(result?.status).toBe("open");
+    expect(mockedUpdateEventStatus).toHaveBeenCalledWith("event-1", "open");
   });
 });

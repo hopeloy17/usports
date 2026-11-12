@@ -1,4 +1,4 @@
-import { getEventRows, getParticipantStatus } from "../../src/db";
+import { getEventRows, getParticipantStatus, updateEventStatus } from "../../src/db";
 import { supabase } from "../../src/db/client";
 
 jest.mock("../../src/db/client", () => ({
@@ -16,6 +16,7 @@ function createQueryBuilder(result: { data: unknown; error: Error | null }) {
     gte: jest.fn(),
     lt: jest.fn(),
     match: jest.fn(),
+    update: jest.fn(),
     maybeSingle: jest.fn(),
     then: jest.fn((resolve) => resolve(result)),
   };
@@ -25,6 +26,7 @@ function createQueryBuilder(result: { data: unknown; error: Error | null }) {
   query.gte.mockReturnValue(query);
   query.lt.mockReturnValue(query);
   query.match.mockReturnValue(query);
+  query.update.mockReturnValue(query);
   query.maybeSingle.mockReturnValue(result);
 
   return query;
@@ -101,5 +103,15 @@ describe("getEventRows", () => {
       event_id: "event-1",
       user_id: "user-1",
     });
+  });
+
+  it("updates an event status", async () => {
+    const query = createQueryBuilder({ data: null, error: null });
+    mockedSupabase.from.mockReturnValue(query as never);
+
+    await expect(updateEventStatus("event-1", "full")).resolves.toBeUndefined();
+    expect(mockedSupabase.from).toHaveBeenCalledWith("events");
+    expect(query.update).toHaveBeenCalledWith({ status: "full" });
+    expect(query.eq).toHaveBeenCalledWith("id", "event-1");
   });
 });

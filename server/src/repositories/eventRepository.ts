@@ -4,6 +4,7 @@ import {
   EventRowFilter,
   getEventRows,
   removeParticipant,
+  updateEventStatus,
 } from "../db";
 import { Event, EventStatus, SkillLevel, UpdateEventInput } from "../types/event";
 
@@ -83,7 +84,20 @@ export async function addEventParticipant(
   userId: string,
 ): Promise<Event | undefined> {
   await addParticipant(eventId, userId);
-  return getEventById(eventId);
+  const updatedEvent = await getEventById(eventId);
+
+  // Recalculate from active participants so a stale open status cannot allow
+  // the response to report an available event after its last spot is taken.
+  if (
+    updatedEvent?.maxPlayers !== undefined &&
+    updatedEvent.joinedCount >= updatedEvent.maxPlayers &&
+    updatedEvent.status !== "full"
+  ) {
+    await updateEventStatus(eventId, "full");
+    updatedEvent.status = "full";
+  }
+
+  return updatedEvent;
 }
 
 export async function removeEventParticipant(
@@ -91,7 +105,15 @@ export async function removeEventParticipant(
   userId: string,
 ): Promise<Event | undefined> {
   await removeParticipant(eventId, userId);
-  return getEventById(eventId);
+  const updatedEvent = await getEventById(eventId);
+
+  // Only a full event reopens; cancelled events must retain their terminal status.
+  if (updatedEvent?.status === "full") {
+    await updateEventStatus(eventId, "open");
+    updatedEvent.status = "open";
+  }
+
+  return updatedEvent;
 }
 
 export function addEvent(event: Event): Event {

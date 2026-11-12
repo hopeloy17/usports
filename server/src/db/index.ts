@@ -208,6 +208,21 @@ export async function removeParticipant(eventId: string, userId: string): Promis
   return data;
 }
 
+// Keeps the stored event status aligned with the active participant count.
+export async function updateEventStatus(
+  eventId: string,
+  status: 'open' | 'full' | 'cancelled',
+): Promise<void> {
+  const { error } = await supabase
+    .from('events')
+    .update({ status })
+    .eq('id', eventId);
+
+  if (error) {
+    throw new Error(`updateEventStatus failed for event ${eventId}: ${error.message}`);
+  }
+}
+
 /**
  * Calculates the total number of confirmed active attendees for a specific event.
  * 
