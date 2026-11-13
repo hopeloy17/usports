@@ -10,11 +10,8 @@ For college students who want to find people to play pickup sports with but don'
 
 To start the server, go to the root directory and run:
 ```bash
-cd server
-npm install
-npm run dev
+npm run dev:server
 ```
-(using `npm run dev:server` runs into issues with finding the .env file, so don't use it for now)
 
 To verify the server, run:
 
