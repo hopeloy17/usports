@@ -7,7 +7,7 @@ import { colors, commonStyles } from "../../styles/common";
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { events, toggleJoin } = useEvents();
+  const { error, events, toggleJoin } = useEvents();
 
   // Find the exact event from our master list
   const event = events.find((e) => e.id === id);
@@ -55,6 +55,12 @@ export default function EventDetailsScreen() {
         )}
       </View>
 
+      {error && (
+        <Text testID="event-action-error" style={styles.errorText}>
+          {error}
+        </Text>
+      )}
+
       <Pressable
         testID="join-leave-button"
         style={[
@@ -64,7 +70,9 @@ export default function EventDetailsScreen() {
           !canJoin && !canLeave && styles.disabledButton,
         ]}
         disabled={!canJoin && !canLeave}
-        onPress={() => void toggleJoin(event.id)}
+        onPress={() => {
+          void toggleJoin(event.id).catch(() => undefined);
+        }}
       >
         <Text
           style={[
@@ -145,6 +153,7 @@ const styles = StyleSheet.create({
   joinButtonText: { fontSize: 18 },
   leaveButtonText: { color: colors.danger },
   disabledButton: { opacity: 0.6 },
+  errorText: { color: colors.danger, textAlign: "center" },
   rosterSection: { marginTop: 10 },
   rosterItem: {
     padding: 12,

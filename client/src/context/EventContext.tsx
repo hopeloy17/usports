@@ -166,6 +166,10 @@ export function EventProvider({
       const message =
         err instanceof Error ? err.message : "Failed to update event";
       setError(message);
+      if (!isLeaving && message === "Event is full") {
+        await refreshEvents();
+        setError(message);
+      }
       console.warn("Toggle join failed:", message);
       throw err;
     }

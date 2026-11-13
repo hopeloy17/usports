@@ -170,4 +170,24 @@ describe("EventDetailsScreen", () => {
     // Back to Join Game
     expect(await findByText("Join Game")).toBeTruthy();
   });
+
+  it("shows a server full error when the event fills before joining", async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: "1" });
+    (eventApi.joinEventApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Event is full"),
+    );
+
+    const { findByTestId, findByText } = await renderWithProviders(
+      <EventDetailsScreen />,
+    );
+
+    await act(async () => {
+      fireEvent.press(await findByText("Join Game"));
+    });
+
+    expect(await findByTestId("event-action-error")).toHaveTextContent(
+      "Event is full",
+    );
+    expect(eventApi.fetchEvents).toHaveBeenCalledTimes(2);
+  });
 });
