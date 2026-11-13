@@ -15,6 +15,7 @@ import {
   ServerEvent,
 } from "../api/events";
 import { EventStatus } from "../styles/common";
+import type { EventFilters } from "../utils/filterEvents";
 import { ProfileContext, SkillLevel } from "./ProfileContext";
 
 // Define the shape of our Event data
@@ -51,7 +52,7 @@ type EventContextType = {
   events: Event[];
   loading: boolean;
   error: string | null;
-  refreshEvents: () => Promise<void>;
+  refreshEvents: (filters?: Pick<EventFilters, "sport" | "date">) => Promise<void>;
   toggleJoin: (id: string) => Promise<void>;
   createEvent: (input: NewEventInput) => Promise<void>;
 };
@@ -82,6 +83,8 @@ export function EventProvider({
   initialEvents?: Event[];
 }) {
   const profileContext = useContext(ProfileContext);
+  const currentUserId =
+    profileContext?.profile.id || "11111111-1111-4111-8111-111111111111";
   const currentUser = profileContext?.profile.displayName || "You";
 
   const createdEventIdsRef = useRef<Set<string>>(new Set());
@@ -89,11 +92,13 @@ export function EventProvider({
   const [loading, setLoading] = useState<boolean>(!initialEvents);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshEvents = useCallback(async () => {
+  const refreshEvents = useCallback(async (
+    filters: Pick<EventFilters, "sport" | "date"> = {},
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      const serverEvents = await fetchEvents();
+      const serverEvents = await fetchEvents(filters);
       setEvents(
         serverEvents.map((e) =>
           toClientEvent(e, currentUser, createdEventIdsRef.current),
@@ -123,8 +128,8 @@ export function EventProvider({
 
     try {
       const updatedServerEvent = isLeaving
-        ? await leaveEventApi(id, currentUser)
-        : await joinEventApi(id, currentUser);
+        ? await leaveEventApi(id, currentUserId)
+        : await joinEventApi(id, currentUserId);
 
       if (isLeaving) {
         createdEventIdsRef.current.delete(id);

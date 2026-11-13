@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import GameCard from "../../components/GameCard";
 import { useEvents } from "../../context/EventContext";
 import { useEventFilters } from "../../context/EventFiltersContext";
@@ -74,7 +74,7 @@ function FilterRow({ category, options, selectedValue, onSelect }: FilterRowProp
 }
 
 export default function EventFeedScreen() {
-  const { events } = useEvents(); // Hooking into shared state!
+  const { events, error, loading, refreshEvents } = useEvents();
   const { filters, setFilters } = useEventFilters();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -92,6 +92,15 @@ export default function EventFeedScreen() {
   );
   const activeFilterCount = [filters.sport, filters.skillLevel, filters.date].filter(Boolean).length;
   const filtersButtonText = activeFilterCount > 0 ? `Filters (${activeFilterCount})` : "Filters";
+
+  // Sport and date are server filters; skill remains a local presentation filter.
+  const selectServerFilter = (nextFilters: typeof filters) => {
+    setFilters(nextFilters);
+    void refreshEvents({
+      sport: nextFilters.sport,
+      date: nextFilters.date,
+    });
+  };
 
   return (
     <View style={commonStyles.container}>
@@ -127,7 +136,9 @@ export default function EventFeedScreen() {
             category="sport"
             options={sportOptions}
             selectedValue={filters.sport}
-            onSelect={(sport) => setFilters((current) => ({ ...current, sport }))}
+            onSelect={(sport) =>
+              selectServerFilter({ ...filters, sport })
+            }
           />
           <Text style={styles.dialogLabel}>Skill</Text>
           <FilterRow
@@ -143,7 +154,9 @@ export default function EventFeedScreen() {
             category="date"
             options={dateOptions}
             selectedValue={filters.date}
-            onSelect={(date) => setFilters((current) => ({ ...current, date }))}
+            onSelect={(date) =>
+              selectServerFilter({ ...filters, date })
+            }
           />
         </View>
       </Modal>
@@ -153,6 +166,26 @@ export default function EventFeedScreen() {
           A game you joined was cancelled: {game.name}
         </Text>
       ))}
+
+      {loading && (
+        <View testID="feed-loading" style={styles.feedback}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.feedbackText}>Loading games...</Text>
+        </View>
+      )}
+
+      {error && (
+        <View testID="feed-error" style={styles.feedback}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading games"
+            onPress={() => void refreshEvents({ sport: filters.sport, date: filters.date })}
+          >
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Display the list of events in a scrollable list */}
       <FlatList
@@ -212,4 +245,8 @@ const styles = StyleSheet.create({
   },
   listContent: { padding: 16, gap: 16 },
   emptyText: { textAlign: "center", marginTop: 32, fontSize: 16, color: "#666" },
+  feedback: { alignItems: "center", gap: 8, padding: 16 },
+  feedbackText: { color: colors.textSecondary },
+  errorText: { color: colors.danger, textAlign: "center" },
+  retryText: { color: colors.primary, fontWeight: "600" },
 });

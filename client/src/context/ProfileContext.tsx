@@ -37,7 +37,7 @@ export const ProfileContext = createContext<ProfileContextType | undefined>(
 
 // Mock signed-in student until auth is wired up
 const initialProfile: Profile = {
-  id: "me",
+  id: "11111111-1111-4111-8111-111111111111",
   displayName: "You",
   email: "student@calvin.edu",
   skillLevel: "Intermediate",
