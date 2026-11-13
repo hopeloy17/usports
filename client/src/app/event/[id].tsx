@@ -15,6 +15,12 @@ export default function EventDetailsScreen() {
   // If the event is not found, display an error message
   if (!event) return <Text style={{ padding: 40 }}>Event not found.</Text>;
 
+  const isFull =
+    event.status === "full" ||
+    (event.maxPlayers !== undefined && event.joinedCount >= event.maxPlayers);
+  const canLeave = event.isJoinedByMe && event.status !== "cancelled";
+  const canJoin = !event.isJoinedByMe && !isFull && event.status !== "cancelled";
+
   return (
     <ScrollView style={commonStyles.container} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ title: `${event.sport} Game` }} />
@@ -55,8 +61,10 @@ export default function EventDetailsScreen() {
           commonStyles.button,
           styles.joinButton,
           event.isJoinedByMe && styles.leaveButton,
+          !canJoin && !canLeave && styles.disabledButton,
         ]}
-        onPress={() => toggleJoin(event.id)}
+        disabled={!canJoin && !canLeave}
+        onPress={() => void toggleJoin(event.id)}
       >
         <Text
           style={[
@@ -65,7 +73,13 @@ export default function EventDetailsScreen() {
             event.isJoinedByMe && styles.leaveButtonText,
           ]}
         >
-          {event.isJoinedByMe ? "Leave Game" : "Join Game"}
+          {event.isJoinedByMe
+            ? "Leave Game"
+            : isFull
+              ? "Game Full"
+              : event.status === "cancelled"
+                ? "Game Cancelled"
+                : "Join Game"}
         </Text>
       </Pressable>
 
@@ -130,6 +144,7 @@ const styles = StyleSheet.create({
   },
   joinButtonText: { fontSize: 18 },
   leaveButtonText: { color: colors.danger },
+  disabledButton: { opacity: 0.6 },
   rosterSection: { marginTop: 10 },
   rosterItem: {
     padding: 12,

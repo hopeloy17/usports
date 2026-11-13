@@ -44,6 +44,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     dateTime: "2026-10-11T17:30:00.000Z",
     joinedCount: 14,
     minPlayers: 14,
+    maxPlayers: 14,
     skillLevel: "Beginner",
     status: "open",
     host: "Alex B.",
@@ -71,7 +72,7 @@ describe("EventDetailsScreen", () => {
         return {
           ...target,
           joinedCount: target.joinedCount + 1,
-          roster: [...target.roster, participant],
+          roster: [...target.roster, "You"],
         };
       },
     );
@@ -81,7 +82,7 @@ describe("EventDetailsScreen", () => {
         return {
           ...target,
           joinedCount: target.joinedCount - 1,
-          roster: target.roster.filter((p) => p !== participant),
+          roster: target.roster.filter((p) => p !== "You"),
         };
       },
     );
@@ -120,6 +121,18 @@ describe("EventDetailsScreen", () => {
 
     expect(await findByText("14/14 players joined")).toBeTruthy();
     expect(queryByText(/Needs .* more players to happen\./)).toBeNull();
+  });
+
+  it("shows a full event as unavailable and does not call join", async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: "2" });
+
+    const { findByText, queryByText } = await renderWithProviders(
+      <EventDetailsScreen />,
+    );
+
+    expect(await findByText("Game Full")).toBeTruthy();
+    expect(queryByText("Join Game")).toBeNull();
+    expect(eventApi.joinEventApi).not.toHaveBeenCalled();
   });
 
   it("shows the game's status badge", async () => {

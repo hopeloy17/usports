@@ -65,12 +65,18 @@ function toClientEvent(
   currentUser: string,
   createdEventIds: Set<string>,
 ): Event {
+  // Treat capacity as authoritative even if the stored status has not refreshed yet.
+  const isFull =
+    serverEvent.status === "full" ||
+    (serverEvent.maxPlayers !== undefined &&
+      serverEvent.joinedCount >= serverEvent.maxPlayers);
   const isHost = serverEvent.host === currentUser;
   const isCreated = createdEventIds.has(serverEvent.id);
   const isInRoster = serverEvent.roster.includes(currentUser);
 
   return {
     ...serverEvent,
+    status: isFull ? "full" : serverEvent.status,
     isJoinedByMe: isInRoster || isHost || isCreated,
   };
 }
@@ -125,6 +131,16 @@ export function EventProvider({
     if (!target) return;
 
     const isLeaving = target.isJoinedByMe;
+
+    if (
+      !isLeaving &&
+      target.maxPlayers !== undefined &&
+      target.joinedCount >= target.maxPlayers
+    ) {
+      const message = "Event is full";
+      setError(message);
+      throw new Error(message);
+    }
 
     try {
       const updatedServerEvent = isLeaving
