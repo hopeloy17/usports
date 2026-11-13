@@ -1,4 +1,5 @@
 import { Request, Router } from "express";
+import { getRequestUserId } from "../auth/requestUser";
 import { deleteEvent, updateEvent } from "../repositories/eventRepository";
 import {
   createEvent,
@@ -7,16 +8,20 @@ import {
   leaveEvent,
   listEvents,
 } from "../services/eventService";
+import { ValidationError } from "../services/errors";
 import { UpdateEventInput } from "../types/event";
 
 // Routes only translate HTTP into service calls. The rules live in the event service,
 // and errors it throws are turned into status codes by the error handler in app.ts.
 const router = Router();
 
-// Reads the participant's name from the request body; anything else counts as missing
-function readParticipant(request: Request): string {
-  const participant = request.body?.participant;
-  return typeof participant === "string" ? participant : "";
+function readUserId(request: Request): string {
+  const userId = getRequestUserId(request);
+  if (typeof userId !== "string" || userId.trim().length === 0) {
+    throw new ValidationError("User ID is required");
+  }
+
+  return userId;
 }
 
 router.get("/", async (request, response) => {
@@ -31,7 +36,7 @@ router.post("/", async (request, response) => {
   response.status(201).json(await createEvent(request.body));
 });
 
-router.patch("/:id", (request, response) => {
+router.patch("/:id", async (request, response) => {
   const updates = request.body as UpdateEventInput;
 
   if (!updates || typeof updates !== "object") {
@@ -39,7 +44,7 @@ router.patch("/:id", (request, response) => {
     return;
   }
 
-  const event = updateEvent(request.params.id, updates);
+  const event = await updateEvent(request.params.id, updates);
 
   if (!event) {
     response.status(404).json({ error: "Event not found" });
@@ -49,8 +54,8 @@ router.patch("/:id", (request, response) => {
   response.status(200).json(event);
 });
 
-router.delete("/:id", (request, response) => {
-  if (!deleteEvent(request.params.id)) {
+router.delete("/:id", async (request, response) => {
+  if (!(await deleteEvent(request.params.id))) {
     response.status(404).json({ error: "Event not found" });
     return;
   }
@@ -59,11 +64,11 @@ router.delete("/:id", (request, response) => {
 });
 
 router.post("/:id/join", async (request, response) => {
-  response.status(200).json(await joinEvent(request.params.id, readParticipant(request)));
+  response.status(200).json(await joinEvent(request.params.id, readUserId(request)));
 });
 
 router.delete("/:id/join", async (request, response) => {
-  response.status(200).json(await leaveEvent(request.params.id, readParticipant(request)));
+  response.status(200).json(await leaveEvent(request.params.id, readUserId(request)));
 });
 
 export default router;

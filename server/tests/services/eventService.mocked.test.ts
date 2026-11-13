@@ -3,26 +3,35 @@
 // service asks it to save, so the rules are tested without any real storage.
 import {
   addEvent,
+  addEventParticipant,
   getAllEvents,
   getEventById,
-  updateEvent,
+  removeEventParticipant,
 } from "../../src/repositories/eventRepository";
+import { getParticipantStatus } from "../../src/db";
 import { ConflictError } from "../../src/services/errors";
 import { createEvent, joinEvent, leaveEvent, listEvents } from "../../src/services/eventService";
 import { Event } from "../../src/types/event";
 
 jest.mock("../../src/repositories/eventRepository", () => ({
   addEvent: jest.fn(),
+  addEventParticipant: jest.fn(),
   getAllEvents: jest.fn(),
   getEventById: jest.fn(),
-  updateEvent: jest.fn(),
+  removeEventParticipant: jest.fn(),
+}));
+
+jest.mock("../../src/db", () => ({
+  getParticipantStatus: jest.fn(),
 }));
 
 // jest.mocked() gives the fakes proper types so .mockReturnValue() type-checks
 const mockedAddEvent = jest.mocked(addEvent);
 const mockedGetAllEvents = jest.mocked(getAllEvents);
 const mockedGetEventById = jest.mocked(getEventById);
-const mockedUpdateEvent = jest.mocked(updateEvent);
+const mockedAddEventParticipant = jest.mocked(addEventParticipant);
+const mockedRemoveEventParticipant = jest.mocked(removeEventParticipant);
+const mockedGetParticipantStatus = jest.mocked(getParticipantStatus);
 
 // Builds a test event; override only the fields a test cares about
 function makeEvent(overrides: Partial<Event> = {}): Event {
@@ -37,6 +46,7 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     maxPlayers: 3,
     skillLevel: "Beginner",
     status: "open",
+    hostId: "host-id",
     host: "Host",
     roster: ["Host"],
     ...overrides,
@@ -46,84 +56,98 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
 // Makes the fake repository hold this event, and echo back whatever the service saves
 function stubRepositoryWith(event: Event): void {
   mockedGetEventById.mockReturnValue(event);
-  mockedUpdateEvent.mockImplementation((_id, updates) => ({ ...event, ...updates }));
+  mockedAddEventParticipant.mockResolvedValue(event);
+  mockedRemoveEventParticipant.mockResolvedValue(event);
+  mockedGetParticipantStatus.mockResolvedValue(null);
 }
 
 describe("joinEvent (mocked repository)", () => {
   it("saves the new participant and count when the event is open", async () => {
     stubRepositoryWith(makeEvent());
 
-    await joinEvent("e1", "Sam");
+    await joinEvent("e1", "user-sam");
 
-    expect(mockedUpdateEvent).toHaveBeenCalledWith("e1", {
-      joinedCount: 2,
-      roster: ["Host", "Sam"],
-      status: "open",
-    });
+    expect(mockedAddEventParticipant).toHaveBeenCalledWith("e1", "user-sam");
   });
 
   it("saves status 'full' when the last spot is taken", async () => {
-    stubRepositoryWith(makeEvent({ joinedCount: 2, roster: ["Host", "Ann"] }));
-
-    const result = await joinEvent("e1", "Sam");
-
-    expect(mockedUpdateEvent).toHaveBeenCalledWith("e1", {
+    const event = makeEvent({ joinedCount: 2, roster: ["Host", "Ann"] });
+    stubRepositoryWith(event);
+    mockedAddEventParticipant.mockResolvedValue({
+      ...event,
       joinedCount: 3,
-      roster: ["Host", "Ann", "Sam"],
       status: "full",
     });
+
+    const result = await joinEvent("e1", "user-sam");
+
+    expect(mockedAddEventParticipant).toHaveBeenCalledWith("e1", "user-sam");
     expect(result.status).toBe("full");
   });
 
   it("rejects joining a full event without saving anything", async () => {
     stubRepositoryWith(makeEvent({ status: "full", joinedCount: 3, roster: ["Host", "Ann", "Bo"] }));
 
-    await expect(joinEvent("e1", "Sam")).rejects.toThrow(new ConflictError("Event is full"));
-    expect(mockedUpdateEvent).not.toHaveBeenCalled();
+    await expect(joinEvent("e1", "user-sam")).rejects.toThrow(new ConflictError("Event is full"));
+    expect(mockedAddEventParticipant).not.toHaveBeenCalled();
+  });
+
+  it("rejects joining when capacity is reached even if status is stale", async () => {
+    stubRepositoryWith(
+      makeEvent({ status: "open", joinedCount: 3, maxPlayers: 3 }),
+    );
+
+    await expect(joinEvent("e1", "user-sam")).rejects.toThrow(
+      new ConflictError("Event is full"),
+    );
+    expect(mockedAddEventParticipant).not.toHaveBeenCalled();
   });
 
   it("rejects joining a cancelled event without saving anything", async () => {
     stubRepositoryWith(makeEvent({ status: "cancelled" }));
 
-    await expect(joinEvent("e1", "Sam")).rejects.toThrow(new ConflictError("Event is cancelled"));
-    expect(mockedUpdateEvent).not.toHaveBeenCalled();
+    await expect(joinEvent("e1", "user-sam")).rejects.toThrow(new ConflictError("Event is cancelled"));
+    expect(mockedAddEventParticipant).not.toHaveBeenCalled();
   });
 
   it("rejects joining twice without saving anything", async () => {
     stubRepositoryWith(makeEvent({ joinedCount: 2, roster: ["Host", "Sam"] }));
+    mockedGetParticipantStatus.mockResolvedValue("going");
 
-    await expect(joinEvent("e1", "Sam")).rejects.toThrow(
+    await expect(joinEvent("e1", "user-sam")).rejects.toThrow(
       new ConflictError("Participant has already joined"),
     );
-    expect(mockedUpdateEvent).not.toHaveBeenCalled();
+    expect(mockedAddEventParticipant).not.toHaveBeenCalled();
   });
 });
 
 describe("leaveEvent (mocked repository)", () => {
   it("saves the roster and count without the participant", async () => {
     stubRepositoryWith(makeEvent({ joinedCount: 2, roster: ["Host", "Sam"] }));
+    mockedGetParticipantStatus.mockResolvedValue("going");
 
-    await leaveEvent("e1", "Sam");
+    await leaveEvent("e1", "user-sam");
 
-    expect(mockedUpdateEvent).toHaveBeenCalledWith("e1", {
-      joinedCount: 1,
-      roster: ["Host"],
-      status: "open",
-    });
+    expect(mockedRemoveEventParticipant).toHaveBeenCalledWith("e1", "user-sam");
   });
 
   it("saves status 'open' when someone leaves a full event, so it reopens", async () => {
-    stubRepositoryWith(
-      makeEvent({ status: "full", joinedCount: 3, roster: ["Host", "Ann", "Sam"] }),
-    );
-
-    const result = await leaveEvent("e1", "Sam");
-
-    expect(mockedUpdateEvent).toHaveBeenCalledWith("e1", {
+    const event = makeEvent({
+      status: "full",
+      joinedCount: 3,
+      roster: ["Host", "Ann", "Sam"],
+    });
+    stubRepositoryWith(event);
+    mockedRemoveEventParticipant.mockResolvedValue({
+      ...event,
       joinedCount: 2,
-      roster: ["Host", "Ann"],
       status: "open",
     });
+    mockedGetParticipantStatus.mockResolvedValue("going");
+
+    const result = await leaveEvent("e1", "user-sam");
+
+    expect(mockedRemoveEventParticipant).toHaveBeenCalledWith("e1", "user-sam");
     expect(result.status).toBe("open");
   });
 });
@@ -134,7 +158,14 @@ describe("listEvents (mocked repository)", () => {
   const tennisToday = makeEvent({ id: "c", sport: "Tennis", dateTime: "2030-06-15T09:00:00.000Z" });
 
   beforeEach(() => {
-    mockedGetAllEvents.mockReturnValue([soccerToday, soccerLater, tennisToday]);
+    mockedGetAllEvents.mockImplementation(async (filters = {}) =>
+      [soccerToday, soccerLater, tennisToday].filter((event) =>
+        (typeof filters.sport !== "string" ||
+          event.sport.toLowerCase() === filters.sport.toLowerCase()) &&
+        (typeof filters.date !== "string" ||
+          event.dateTime.startsWith(filters.date)),
+      ),
+    );
   });
 
   it("filters the feed by sport", async () => {

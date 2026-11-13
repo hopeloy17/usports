@@ -1,9 +1,10 @@
-// Zuriel's data functions (in-memory for now, Supabase later)
+import { getParticipantStatus } from "../db";
 import {
+  addEventParticipant,
   addEvent,
   getAllEvents,
   getEventById,
-  updateEvent,
+  removeEventParticipant,
 } from "../repositories/eventRepository";
 import { CreateEventInput, Event, SkillLevel, UpdateEventInput } from "../types/event";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
@@ -22,16 +23,6 @@ export type EventListFilters = {
 
 async function findEvent(eventId: string): Promise<Event> {
   const event = await getEventById(eventId);
-
-  if (!event) {
-    throw new NotFoundError("Event not found");
-  }
-
-  return event;
-}
-
-async function saveEvent(eventId: string, updates: UpdateEventInput): Promise<Event> {
-  const event = await updateEvent(eventId, updates);
 
   if (!event) {
     throw new NotFoundError("Event not found");
@@ -96,13 +87,14 @@ export async function listEvents(filters: EventListFilters): Promise<FeedEvent[]
     throw new ValidationError("Invalid date");
   }
 
-  const events = await getAllEvents();
+  const events = await getAllEvents({
+    ...(typeof sport === "string" ? { sport } : {}),
+    ...(typeof date === "string" ? { date } : {}),
+  });
 
   return events
     .filter((event) =>
-      (typeof sport !== "string" || event.sport.toLowerCase() === sport.toLowerCase()) &&
-      (skillLevel === undefined || event.skillLevel === skillLevel) &&
-      (date === undefined || new Date(event.dateTime).toISOString().startsWith(date as string))
+      skillLevel === undefined || event.skillLevel === skillLevel
     )
     .map((event) => ({ ...event, headcount: formatHeadcount(event) }));
 }
@@ -124,6 +116,7 @@ export async function createEvent(input: unknown): Promise<Event> {
     maxPlayers: input.maxPlayers,
     skillLevel: input.skillLevel,
     status: "open",
+    hostId: input.host,
     host: input.host,
     roster: [input.host],
     ...(typeof input.description === "string" && input.description.length > 0
@@ -135,9 +128,9 @@ export async function createEvent(input: unknown): Promise<Event> {
 }
 
 // Adds a participant, enforcing the cancelled, double-join, and capacity rules
-export async function joinEvent(eventId: string, participant: string): Promise<Event> {
-  if (participant.trim().length === 0) {
-    throw new ValidationError("Participant is required");
+export async function joinEvent(eventId: string, userId: string): Promise<Event> {
+  if (userId.trim().length === 0) {
+    throw new ValidationError("User ID is required");
   }
 
   const event = await findEvent(eventId);
@@ -146,7 +139,7 @@ export async function joinEvent(eventId: string, participant: string): Promise<E
     throw new ConflictError("Event is cancelled");
   }
 
-  if (event.roster.includes(participant)) {
+  if ((await getParticipantStatus(eventId, userId)) === "going") {
     throw new ConflictError("Participant has already joined");
   }
 
@@ -154,30 +147,32 @@ export async function joinEvent(eventId: string, participant: string): Promise<E
     throw new ConflictError("Event is full");
   }
 
-  const joinedCount = event.joinedCount + 1;
+  const updatedEvent = await addEventParticipant(eventId, userId);
 
-  return saveEvent(eventId, {
-    joinedCount,
-    roster: [...event.roster, participant],
-    status: hasReachedCapacity(event, joinedCount) ? "full" : event.status,
-  });
+  if (!updatedEvent) {
+    throw new NotFoundError("Event not found");
+  }
+
+  return updatedEvent;
 }
 
 // Removes a participant and reopens the event if it was full
-export async function leaveEvent(eventId: string, participant: string): Promise<Event> {
+export async function leaveEvent(eventId: string, userId: string): Promise<Event> {
   const event = await findEvent(eventId);
 
-  if (!event.roster.includes(participant)) {
+  if ((await getParticipantStatus(eventId, userId)) !== "going") {
     throw new NotFoundError("Participant not found");
   }
 
-  if (participant === event.host) {
+  if (userId === event.hostId) {
     throw new ConflictError("The host cannot leave the event");
   }
 
-  return saveEvent(eventId, {
-    joinedCount: event.joinedCount - 1,
-    roster: event.roster.filter((name) => name !== participant),
-    status: event.status === "full" ? "open" : event.status,
-  });
+  const updatedEvent = await removeEventParticipant(eventId, userId);
+
+  if (!updatedEvent) {
+    throw new NotFoundError("Event not found");
+  }
+
+  return updatedEvent;
 }

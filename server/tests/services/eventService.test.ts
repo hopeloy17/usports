@@ -1,8 +1,14 @@
 import {
   addEvent,
   getEventById,
-  resetEvents,
+  getAllEvents,
+  addEventParticipant,
+  removeEventParticipant,
 } from "../../src/repositories/eventRepository";
+import * as eventRepository from "../../src/repositories/eventRepository";
+import * as database from "../../src/db";
+import { getParticipantStatus } from "../../src/db";
+import { mockEvents } from "../../src/data/events";
 import { ConflictError, NotFoundError, ValidationError } from "../../src/services/errors";
 import {
   createEvent,
@@ -26,14 +32,71 @@ function makeEvent(overrides: Partial<Event>): Event {
     minPlayers: 2,
     skillLevel: "Beginner",
     status: "open",
+    hostId: "host-id",
     host: "Host",
     roster: ["Host"],
     ...overrides,
   };
 }
 
+let testEvents: Event[];
+
+jest.spyOn(eventRepository, "getEventById");
+jest.spyOn(eventRepository, "getAllEvents");
+jest.spyOn(eventRepository, "addEvent");
+jest.spyOn(eventRepository, "addEventParticipant");
+jest.spyOn(eventRepository, "removeEventParticipant");
+jest.spyOn(database, "getParticipantStatus");
+
 beforeEach(() => {
-  resetEvents();
+  testEvents = structuredClone(mockEvents);
+
+  jest.mocked(eventRepository.getEventById).mockImplementation(async (id) =>
+    testEvents.find((event) => event.id === id),
+  );
+  jest.mocked(eventRepository.getAllEvents).mockImplementation(async (filters = {}) =>
+    testEvents.filter((event) =>
+      (typeof filters.sport !== "string" ||
+        event.sport.toLowerCase() === filters.sport.toLowerCase()) &&
+      (typeof filters.date !== "string" ||
+        event.dateTime.startsWith(filters.date)),
+    ),
+  );
+  jest.mocked(eventRepository.addEvent).mockImplementation((event) => {
+    testEvents = [...testEvents, event];
+    return event;
+  });
+  jest.mocked(database.getParticipantStatus).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    return event && (event.hostId === userId || event.roster.includes(userId)) ? "going" : null;
+  });
+  jest.mocked(eventRepository.addEventParticipant).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    if (!event) return undefined;
+    const updated = {
+      ...event,
+      joinedCount: event.joinedCount + 1,
+      roster: [...event.roster, userId],
+      status:
+        event.maxPlayers !== undefined && event.joinedCount + 1 >= event.maxPlayers
+          ? "full" as const
+          : event.status,
+    };
+    testEvents = testEvents.map((candidate) => candidate.id === eventId ? updated : candidate);
+    return updated;
+  });
+  jest.mocked(eventRepository.removeEventParticipant).mockImplementation(async (eventId, userId) => {
+    const event = testEvents.find((candidate) => candidate.id === eventId);
+    if (!event) return undefined;
+    const updated = {
+      ...event,
+      joinedCount: event.joinedCount - 1,
+      roster: event.roster.filter((participant) => participant !== userId),
+      status: event.status === "full" ? "open" as const : event.status,
+    };
+    testEvents = testEvents.map((candidate) => candidate.id === eventId ? updated : candidate);
+    return updated;
+  });
 });
 
 describe("joinEvent", () => {
@@ -47,7 +110,7 @@ describe("joinEvent", () => {
   it("saves the change", async () => {
     await joinEvent("1", "Jordan P.");
 
-    expect(getEventById("1")?.roster).toContain("Jordan P.");
+    expect((await getEventById("1"))?.roster).toContain("Jordan P.");
   });
 
   it("marks the event full when the last spot is taken", async () => {
@@ -69,7 +132,7 @@ describe("joinEvent", () => {
     const result = joinEvent("1", "   ");
 
     await expect(result).rejects.toThrow(ValidationError);
-    await expect(result).rejects.toThrow("Participant is required");
+    await expect(result).rejects.toThrow("User ID is required");
   });
 
   it("rejects joining a full event", async () => {
@@ -102,8 +165,8 @@ describe("joinEvent", () => {
 
     await expect(joinEvent("full", "Jordan P.")).rejects.toThrow();
 
-    expect(getEventById("full")?.roster).toEqual(["Host", "Sam"]);
-    expect(getEventById("full")?.joinedCount).toBe(2);
+    expect((await getEventById("full"))?.roster).toEqual(["Host", "Sam"]);
+    expect((await getEventById("full"))?.joinedCount).toBe(2);
   });
 });
 
@@ -146,7 +209,7 @@ describe("leaveEvent", () => {
   });
 
   it("rejects the host leaving their own event", async () => {
-    const result = leaveEvent("1", "John D.");
+    const result = leaveEvent("1", "host-john");
 
     await expect(result).rejects.toThrow(ConflictError);
     await expect(result).rejects.toThrow("The host cannot leave the event");

@@ -1,9 +1,78 @@
 import { supabase } from './client'; // or './database' if you named the client file database.ts
+import type { DatabaseEventRow } from '../repositories/eventRepository';
 
 export interface EventFilter {
   sport_id?: number;
   startDate?: string;
   endDate?: string;
+}
+
+export interface EventRowFilter {
+  sport?: string;
+  date?: string;
+}
+
+export async function getEventRows(
+  filters: EventRowFilter = {},
+): Promise<DatabaseEventRow[]> {
+  let query = supabase
+    .from('events')
+    .select(`
+      id,
+      host_id,
+      title,
+      start_time,
+      description,
+      min_players,
+      max_players,
+      skill_level,
+      status,
+      host:users!events_host_id_fkey(name),
+      sport:sports!inner(name),
+      venue:venues(name),
+      participants:event_participants(status, user:users(name))
+    `);
+
+  if (filters.sport) {
+    query = query.eq('sports.name', filters.sport);
+  }
+
+  if (filters.date) {
+    query = query.gte('start_time', `${filters.date}T00:00:00.000Z`);
+    query = query.lt('start_time', `${filters.date}T23:59:59.999Z`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`getEventRows error: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => {
+    const host = row.host[0];
+    const sport = row.sport[0];
+    const venue = row.venue[0];
+
+    if (!host || !sport || !venue) {
+      throw new Error(`getEventRows error: incomplete event relationship data`);
+    }
+
+    return {
+      ...row,
+      host,
+      sport,
+      venue,
+      participants: row.participants.map((participant) => {
+        const user = participant.user[0];
+
+        if (!user) {
+          throw new Error(`getEventRows error: incomplete participant data`);
+        }
+
+        return { ...participant, user };
+      }),
+    };
+  }) as DatabaseEventRow[];
 }
 
 /**
@@ -95,6 +164,25 @@ export async function addParticipant(eventId: string, userId: string): Promise<R
   return data;
 }
 
+export async function getParticipantStatus(
+  eventId: string,
+  userId: string,
+): Promise<'going' | 'cancelled' | null> {
+  const { data, error } = await supabase
+    .from('event_participants')
+    .select('status')
+    .match({ event_id: eventId, user_id: userId })
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `getParticipantStatus failed for user ${userId} on event ${eventId}: ${error.message}`,
+    );
+  }
+
+  return data?.status ?? null;
+}
+
 /**
  * Marks a participant's attendance status as 'cancelled'.
  * 
@@ -118,6 +206,21 @@ export async function removeParticipant(eventId: string, userId: string): Promis
   }
 
   return data;
+}
+
+// Keeps the stored event status aligned with the active participant count.
+export async function updateEventStatus(
+  eventId: string,
+  status: 'open' | 'full' | 'cancelled',
+): Promise<void> {
+  const { error } = await supabase
+    .from('events')
+    .update({ status })
+    .eq('id', eventId);
+
+  if (error) {
+    throw new Error(`updateEventStatus failed for event ${eventId}: ${error.message}`);
+  }
 }
 
 /**
