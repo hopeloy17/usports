@@ -1,5 +1,6 @@
 import express from "express";
 import { errorHandler } from "./middleware/errorHandler";
+import authRoutes from "./routes/authRoutes";
 import eventRoutes from "./routes/eventRoutes";
 import profileRoutes from "./routes/profileRoutes";
 
@@ -24,6 +25,8 @@ app.get("/api/health", (_request, response) => {
   response.status(200).json({ status: "ok" });
 });
 
+// Student sign-up and sign-in (calvin.edu only), backed by Supabase Auth
+app.use("/api/auth", authRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/profile", profileRoutes);
 
