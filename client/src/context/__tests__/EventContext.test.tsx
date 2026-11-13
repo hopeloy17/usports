@@ -53,7 +53,7 @@ describe("EventContext", () => {
         return {
           ...target,
           joinedCount: target.joinedCount + 1,
-          roster: [...target.roster, participant],
+          roster: [...target.roster, "You"],
         };
       },
     );
@@ -63,7 +63,7 @@ describe("EventContext", () => {
         return {
           ...target,
           joinedCount: target.joinedCount - 1,
-          roster: target.roster.filter((p) => p !== participant),
+          roster: target.roster.filter((p) => p !== "You"),
         };
       },
     );
@@ -107,7 +107,10 @@ describe("EventContext", () => {
     expect(updatedEvent.isJoinedByMe).toBe(true);
     expect(updatedEvent.joinedCount).toBe(7);
     expect(updatedEvent.roster).toContain("You");
-    expect(eventApi.joinEventApi).toHaveBeenCalledWith("1", "You");
+    expect(eventApi.joinEventApi).toHaveBeenCalledWith(
+      "1",
+      "11111111-1111-1111-1111-111111111111",
+    );
   });
 
   it("creates a new event with the host auto-joined", async () => {
@@ -176,7 +179,10 @@ describe("EventContext", () => {
 
     expect(result.current.events[0].isJoinedByMe).toBe(false);
     expect(result.current.events[0].roster).not.toContain("You");
-    expect(eventApi.leaveEventApi).toHaveBeenCalledWith(targetId, "You");
+    expect(eventApi.leaveEventApi).toHaveBeenCalledWith(
+      targetId,
+      "11111111-1111-1111-1111-111111111111",
+    );
   });
 
   it("handles fetchEvents error gracefully and updates error state", async () => {
@@ -201,6 +207,30 @@ describe("EventContext", () => {
       "Network connection error",
     );
     warnSpy.mockRestore();
+  });
+
+  it("passes server-supported sport and date filters when refreshing", async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventProvider>{children}</EventProvider>
+    );
+
+    const { result } = await renderHook(() => useEvents(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.events.length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      await result.current.refreshEvents({
+        sport: "Basketball",
+        date: "2026-10-10",
+      });
+    });
+
+    expect(eventApi.fetchEvents).toHaveBeenLastCalledWith({
+      sport: "Basketball",
+      date: "2026-10-10",
+    });
   });
 
   it("sets error state and rethrows when toggleJoin fails", async () => {

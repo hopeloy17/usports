@@ -12,7 +12,7 @@ export type ServerEvent = {
   joinedCount: number;
   minPlayers: number;
   maxPlayers?: number;
-  skillLevel: SkillLevel;
+  skillLevel: SkillLevel | null;
   status: EventStatus;
   host: string;
   roster: string[];
@@ -54,65 +54,20 @@ const getBaseUrl = (): string => {
 
 export const API_BASE_URL = getBaseUrl();
 
-const getInitialFallbackEvents = (): ServerEvent[] => {
-  const today = new Date();
-  today.setHours(19, 0, 0, 0);
-
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(17, 30, 0, 0);
-
-  return [
-    {
-      id: "1",
-      name: "John D.'s Basketball Game",
-      sport: "Basketball",
-      venue: "Spoelhof Fieldhouse",
-      dateTime: today.toISOString(),
-      joinedCount: 6,
-      minPlayers: 10,
-      skillLevel: "Intermediate",
-      status: "open",
-      host: "John D.",
-      roster: [
-        "John D.",
-        "Sarah M.",
-        "Mike T.",
-        "David L.",
-        "Emma W.",
-        "Chris P.",
-      ],
-      description: "Casual pickup basketball game at Spoelhof Fieldhouse.",
-    },
-    {
-      id: "2",
-      name: "Alex B.'s Soccer Game",
-      sport: "Soccer",
-      venue: "Gainey Athletic Complex",
-      dateTime: tomorrow.toISOString(),
-      joinedCount: 2,
-      minPlayers: 14,
-      skillLevel: "Beginner",
-      status: "open",
-      host: "Alex B.",
-      roster: ["Alex B.", "Gary L."],
-      description: "Friendly soccer scrimmage at Gainey Athletic Complex.",
-    },
-  ];
+export type EventFilters = {
+  sport?: string;
+  date?: string;
 };
 
-let fallbackEvents: ServerEvent[] = getInitialFallbackEvents();
-
-export async function fetchEvents(): Promise<ServerEvent[]> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/events`);
-  } catch (networkError) {
-    console.warn(
-      `[USports API] Backend server unreachable at ${API_BASE_URL}. Ensure 'npm run dev:server' is running. Using fallback mock data.`,
-    );
-    return fallbackEvents;
-  }
+export async function fetchEvents(
+  filters: EventFilters = {},
+): Promise<ServerEvent[]> {
+  const query = new URLSearchParams();
+  if (filters.sport) query.set("sport", filters.sport);
+  if (filters.date) query.set("date", filters.date);
+  const queryString = query.toString();
+  const endpoint = `${API_BASE_URL}/api/events${queryString ? `?${queryString}` : ""}`;
+  const response = await fetch(endpoint);
 
   if (!response.ok) {
     throw new Error(
@@ -120,20 +75,11 @@ export async function fetchEvents(): Promise<ServerEvent[]> {
     );
   }
 
-  const data = await response.json();
-  fallbackEvents = data;
-  return data;
+  return response.json();
 }
 
 export async function fetchEventById(id: string): Promise<ServerEvent> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/events/${id}`);
-  } catch (networkError) {
-    const event = fallbackEvents.find((e) => e.id === id);
-    if (event) return event;
-    throw new Error(`Event not found: ${id}`);
-  }
+  const response = await fetch(`${API_BASE_URL}/api/events/${id}`);
 
   if (!response.ok) {
     throw new Error(
@@ -141,43 +87,19 @@ export async function fetchEventById(id: string): Promise<ServerEvent> {
     );
   }
 
-  return await response.json();
+  return response.json();
 }
 
 export async function createEventApi(
   input: CreateEventInput,
 ): Promise<ServerEvent> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
-    });
-  } catch (networkError) {
-    console.warn(
-      `[USports API] Backend server unreachable at ${API_BASE_URL}. Storing event in local fallback state.`,
-    );
-    const fallbackEvent: ServerEvent = {
-      id: Date.now().toString(),
-      name: `${input.host}'s ${input.sport} Game`,
-      sport: input.sport,
-      venue: input.venue,
-      dateTime: input.dateTime,
-      minPlayers: input.minPlayers,
-      maxPlayers: input.maxPlayers,
-      skillLevel: input.skillLevel,
-      status: "open",
-      host: input.host,
-      roster: [input.host],
-      description: input.description,
-      joinedCount: 1
-    };
-    fallbackEvents = [...fallbackEvents, fallbackEvent];
-    return fallbackEvent;
-  }
+  const response = await fetch(`${API_BASE_URL}/api/events`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
@@ -187,35 +109,17 @@ export async function createEventApi(
     );
   }
 
-  const data = await response.json();
-  fallbackEvents = [...fallbackEvents, data];
-  return data;
+  return response.json();
 }
 
 export async function joinEventApi(
   id: string,
-  participant: string,
+  userId: string,
 ): Promise<ServerEvent> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ participant }),
-    });
-  } catch (networkError) {
-    const target = fallbackEvents.find((e) => e.id === id);
-    if (target) {
-      if (!target.roster.includes(participant)) {
-        target.roster = [...target.roster, participant];
-        target.joinedCount += 1;
-      }
-      return { ...target };
-    }
-    throw networkError;
-  }
+  const response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
+    method: "POST",
+    headers: { "x-user-id": userId },
+  });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
@@ -225,31 +129,17 @@ export async function joinEventApi(
     );
   }
 
-  return await response.json();
+  return response.json();
 }
 
 export async function leaveEventApi(
   id: string,
-  participant: string,
+  userId: string,
 ): Promise<ServerEvent> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ participant }),
-    });
-  } catch (networkError) {
-    const target = fallbackEvents.find((e) => e.id === id);
-    if (target) {
-      target.roster = target.roster.filter((p) => p !== participant);
-      target.joinedCount = Math.max(0, target.joinedCount - 1);
-      return { ...target };
-    }
-    throw networkError;
-  }
+  const response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
+    method: "DELETE",
+    headers: { "x-user-id": userId },
+  });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
@@ -259,5 +149,5 @@ export async function leaveEventApi(
     );
   }
 
-  return await response.json();
+  return response.json();
 }

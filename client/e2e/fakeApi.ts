@@ -51,6 +51,9 @@ export function createFakeApi() {
 
     const headers = (init.headers as Record<string, string>) || {};
     const userId = headers["x-user-id"] || "11111111-1111-4111-8111-111111111111";
+    const participant =
+      profileState[userId]?.name ||
+      ({ taylor: "Taylor", jordan: "Jordan" }[userId] ?? "Student");
 
     if (path === "/api/profile" && method === "GET") {
       const user = profileState[userId] || {
@@ -113,8 +116,8 @@ export function createFakeApi() {
     if (!match || !event) return fail(404, "Event not found");
 
     if (!match[2] && method === "GET") return respond(200, event);
-    if (match[2] && method === "POST") return changeRoster(event, body.participant, true);
-    if (match[2] && method === "DELETE") return changeRoster(event, body.participant, false);
+    if (match[2] && method === "POST") return changeRoster(event, participant, true);
+    if (match[2] && method === "DELETE") return changeRoster(event, participant, false);
     return fail(404, "Not found");
   }
 

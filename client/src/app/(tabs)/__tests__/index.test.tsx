@@ -3,7 +3,7 @@ import * as eventApi from "../../../api/events";
 import { EventProvider } from "../../../context/EventContext";
 import { EventFiltersProvider } from "../../../context/EventFiltersContext";
 import EventFeedScreen from "../index";
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 
 jest.mock("../../../api/events");
 
@@ -82,9 +82,48 @@ describe("EventFeedScreen", () => {
     expect(await findByText("6/10 joined")).toBeTruthy();
     expect(await findByText("2/14 joined")).toBeTruthy();
   });
+
+  it("shows a loading state while the server request is pending", async () => {
+    let resolveFetch: (events: eventApi.ServerEvent[]) => void = () => {};
+    (eventApi.fetchEvents as jest.Mock).mockImplementation(
+      () => new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    const { findByTestId } = await renderWithProvider(<EventFeedScreen />);
+
+    expect(await findByTestId("feed-loading")).toBeTruthy();
+    await act(async () => {
+      resolveFetch(mockServerEvents);
+    });
+  });
+
+  it("shows a server error and retries with the active filters", async () => {
+    (eventApi.fetchEvents as jest.Mock)
+      .mockRejectedValueOnce(new Error("Event service unavailable"))
+      .mockResolvedValueOnce(mockServerEvents);
+
+    const { findByTestId, findByLabelText } = await renderWithProvider(
+      <EventFeedScreen />,
+    );
+
+    expect(await findByTestId("feed-error")).toHaveTextContent(
+      /Event service unavailable/,
+    );
+    await fireEvent.press(await findByLabelText("Retry loading games"));
+
+    await waitFor(() => {
+      expect(eventApi.fetchEvents).toHaveBeenLastCalledWith({});
+    });
+  });
 });
 
 describe("EventFeedScreen cancellation notice", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   // The feed treats the signed-in student as "You" when there is no ProfileProvider
   const joinedAndCancelled = { ...mockServerEvents[0], status: "cancelled" as const, roster: ["John D.", "You"] };
 
@@ -165,6 +204,7 @@ describe("EventFeedScreen filters", () => {
 
     expect(await findByText("📍 Gainey Athletic Complex")).toBeTruthy();
     expect(queryByText("📍 Spoelhof Fieldhouse")).toBeNull();
+    expect(eventApi.fetchEvents).toHaveBeenLastCalledWith({ sport: "Soccer" });
   });
 
   it("clears the sport filter when the chip is pressed again", async () => {

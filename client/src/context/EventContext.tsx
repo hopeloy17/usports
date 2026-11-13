@@ -14,7 +14,9 @@ import {
   leaveEventApi,
   ServerEvent,
 } from "../api/events";
+import { DEFAULT_USER_ID } from "../api/profile";
 import { EventStatus } from "../styles/common";
+import type { EventFilters } from "../utils/filterEvents";
 import { ProfileContext, SkillLevel } from "./ProfileContext";
 
 // Define the shape of our Event data
@@ -27,7 +29,7 @@ export type Event = {
   joinedCount: number;
   minPlayers: number;
   maxPlayers?: number;
-  skillLevel: SkillLevel;
+  skillLevel: SkillLevel | null;
   status: EventStatus;
   host: string;
   roster: string[];
@@ -51,7 +53,7 @@ type EventContextType = {
   events: Event[];
   loading: boolean;
   error: string | null;
-  refreshEvents: () => Promise<void>;
+  refreshEvents: (filters?: Pick<EventFilters, "sport" | "date">) => Promise<void>;
   toggleJoin: (id: string) => Promise<void>;
   createEvent: (input: NewEventInput) => Promise<void>;
 };
@@ -64,12 +66,18 @@ function toClientEvent(
   currentUser: string,
   createdEventIds: Set<string>,
 ): Event {
+  // Treat capacity as authoritative even if the stored status has not refreshed yet.
+  const isFull =
+    serverEvent.status === "full" ||
+    (serverEvent.maxPlayers !== undefined &&
+      serverEvent.joinedCount >= serverEvent.maxPlayers);
   const isHost = serverEvent.host === currentUser;
   const isCreated = createdEventIds.has(serverEvent.id);
   const isInRoster = serverEvent.roster.includes(currentUser);
 
   return {
     ...serverEvent,
+    status: isFull ? "full" : serverEvent.status,
     isJoinedByMe: isInRoster || isHost || isCreated,
   };
 }
@@ -82,6 +90,8 @@ export function EventProvider({
   initialEvents?: Event[];
 }) {
   const profileContext = useContext(ProfileContext);
+  const currentUserId =
+    profileContext?.profile.id || DEFAULT_USER_ID;
   const currentUser = profileContext?.profile.displayName || "You";
 
   const createdEventIdsRef = useRef<Set<string>>(new Set());
@@ -89,11 +99,13 @@ export function EventProvider({
   const [loading, setLoading] = useState<boolean>(!initialEvents);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshEvents = useCallback(async () => {
+  const refreshEvents = useCallback(async (
+    filters: Pick<EventFilters, "sport" | "date"> = {},
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      const serverEvents = await fetchEvents();
+      const serverEvents = await fetchEvents(filters);
       setEvents(
         serverEvents.map((e) =>
           toClientEvent(e, currentUser, createdEventIdsRef.current),
@@ -121,10 +133,20 @@ export function EventProvider({
 
     const isLeaving = target.isJoinedByMe;
 
+    if (
+      !isLeaving &&
+      target.maxPlayers !== undefined &&
+      target.joinedCount >= target.maxPlayers
+    ) {
+      const message = "Event is full";
+      setError(message);
+      throw new Error(message);
+    }
+
     try {
       const updatedServerEvent = isLeaving
-        ? await leaveEventApi(id, currentUser)
-        : await joinEventApi(id, currentUser);
+        ? await leaveEventApi(id, currentUserId)
+        : await joinEventApi(id, currentUserId);
 
       if (isLeaving) {
         createdEventIdsRef.current.delete(id);
@@ -145,6 +167,10 @@ export function EventProvider({
       const message =
         err instanceof Error ? err.message : "Failed to update event";
       setError(message);
+      if (!isLeaving && message === "Event is full") {
+        await refreshEvents();
+        setError(message);
+      }
       console.warn("Toggle join failed:", message);
       throw err;
     }

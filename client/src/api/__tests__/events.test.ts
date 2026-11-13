@@ -43,6 +43,19 @@ describe("events API client", () => {
     expect(result).toEqual(mockData);
   });
 
+  it("passes sport and date filters to the server", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    } as Response);
+
+    await fetchEvents({ sport: "Basketball", date: "2026-10-10" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/api/events?sport=Basketball&date=2026-10-10`,
+    );
+  });
+
   it("fetches a single event by id", async () => {
     const mockEvent = {
       id: "1",
@@ -124,8 +137,7 @@ describe("events API client", () => {
       `${API_BASE_URL}/api/events/1/join`,
       expect.objectContaining({
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participant: "You" }),
+        headers: { "x-user-id": "You" },
       }),
     );
     expect(result).toEqual(updatedEvent);
@@ -149,14 +161,13 @@ describe("events API client", () => {
       `${API_BASE_URL}/api/events/1/join`,
       expect.objectContaining({
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participant: "You" }),
+        headers: { "x-user-id": "You" },
       }),
     );
     expect(result).toEqual(updatedEvent);
   });
 
-  describe("error handling and offline fallback", () => {
+  describe("error handling", () => {
     let warnSpy: jest.SpyInstance;
 
     beforeEach(() => {
@@ -178,15 +189,10 @@ describe("events API client", () => {
       await expect(fetchEvents()).rejects.toThrow("Failed to fetch events: 404 Not Found");
     });
 
-    it("returns fallback events when fetchEvents encounters a network error", async () => {
+    it("propagates a network error when fetchEvents cannot reach the server", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
-      const events = await fetchEvents();
-      expect(Array.isArray(events)).toBe(true);
-      expect(events.length).toBeGreaterThan(0);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Backend server unreachable"),
-      );
+      await expect(fetchEvents()).rejects.toThrow("Network failure");
     });
 
     it("throws an error when fetchEventById response is not ok", async () => {
@@ -199,23 +205,21 @@ describe("events API client", () => {
       await expect(fetchEventById("1")).rejects.toThrow("Failed to fetch event: 404 Not Found");
     });
 
-    it("returns fallback event on network error when event exists", async () => {
+    it("propagates a network error when fetchEventById cannot reach the server", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
-      const event = await fetchEventById("1");
-      expect(event).toBeDefined();
-      expect(event.id).toBe("1");
+      await expect(fetchEventById("1")).rejects.toThrow("Network failure");
     });
 
-    it("throws not found on network error when event does not exist", async () => {
+    it("propagates a network error for an unknown event when the server is unreachable", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
       await expect(fetchEventById("nonexistent_id")).rejects.toThrow(
-        "Event not found: nonexistent_id",
+        "Network failure",
       );
     });
 
-    it("creates a fallback event and stores locally when backend is unreachable", async () => {
+    it("propagates a network error when createEventApi cannot reach the server", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
       const input = {
@@ -228,14 +232,7 @@ describe("events API client", () => {
         description: "Singles match",
       };
 
-      const result = await createEventApi(input);
-      expect(result.sport).toBe("Tennis");
-      expect(result.host).toBe("Alex B.");
-      expect(result.roster).toEqual(["Alex B."]);
-      expect(result.joinedCount).toBe(1);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Storing event in local fallback state"),
-      );
+      await expect(createEventApi(input)).rejects.toThrow("Network failure");
     });
 
     it("throws server error message when createEventApi response is not ok", async () => {
@@ -258,25 +255,18 @@ describe("events API client", () => {
       ).rejects.toThrow("Invalid event data");
     });
 
-    it("updates local fallback roster on network error when joinEventApi is called", async () => {
+    it("propagates a network error when joinEventApi cannot reach the server", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
-      const initial = await fetchEventById("1");
-      const countBefore = initial.joinedCount;
-
-      const updated = await joinEventApi("1", "NewPlayer");
-      expect(updated.roster).toContain("NewPlayer");
-      expect(updated.joinedCount).toBe(countBefore + 1);
-
-      // Re-joining duplicate does not increment count
-      const reJoined = await joinEventApi("1", "NewPlayer");
-      expect(reJoined.joinedCount).toBe(countBefore + 1);
+      await expect(joinEventApi("1", "NewPlayer")).rejects.toThrow("Network failure");
     });
 
-    it("rethrows network error when joinEventApi is called on unknown fallback event", async () => {
+    it("propagates a network error for an unknown event when joining", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
-      await expect(joinEventApi("unknown_999", "Player")).rejects.toThrow("Network failure");
+      await expect(joinEventApi("unknown_999", "Player")).rejects.toThrow(
+        "Network failure",
+      );
     });
 
     it("throws server error message when joinEventApi response is not ok", async () => {
@@ -290,17 +280,18 @@ describe("events API client", () => {
       await expect(joinEventApi("1", "Player")).rejects.toThrow("Event is full");
     });
 
-    it("updates local fallback roster on network error when leaveEventApi is called", async () => {
+    it("propagates a network error when leaveEventApi cannot reach the server", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
-      const updated = await leaveEventApi("1", "NewPlayer");
-      expect(updated.roster).not.toContain("NewPlayer");
+      await expect(leaveEventApi("1", "NewPlayer")).rejects.toThrow("Network failure");
     });
 
-    it("rethrows network error when leaveEventApi is called on unknown fallback event", async () => {
+    it("propagates a network error for an unknown event when leaving", async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error("Network failure"));
 
-      await expect(leaveEventApi("unknown_999", "Player")).rejects.toThrow("Network failure");
+      await expect(leaveEventApi("unknown_999", "Player")).rejects.toThrow(
+        "Network failure",
+      );
     });
 
     it("throws server error message when leaveEventApi response is not ok", async () => {

@@ -44,6 +44,7 @@ const mockServerEvents: eventApi.ServerEvent[] = [
     dateTime: "2026-10-11T17:30:00.000Z",
     joinedCount: 14,
     minPlayers: 14,
+    maxPlayers: 14,
     skillLevel: "Beginner",
     status: "open",
     host: "Alex B.",
@@ -71,7 +72,7 @@ describe("EventDetailsScreen", () => {
         return {
           ...target,
           joinedCount: target.joinedCount + 1,
-          roster: [...target.roster, participant],
+          roster: [...target.roster, "You"],
         };
       },
     );
@@ -81,7 +82,7 @@ describe("EventDetailsScreen", () => {
         return {
           ...target,
           joinedCount: target.joinedCount - 1,
-          roster: target.roster.filter((p) => p !== participant),
+          roster: target.roster.filter((p) => p !== "You"),
         };
       },
     );
@@ -122,6 +123,18 @@ describe("EventDetailsScreen", () => {
     expect(queryByText(/Needs .* more players to happen\./)).toBeNull();
   });
 
+  it("shows a full event as unavailable and does not call join", async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: "2" });
+
+    const { findByText, queryByText } = await renderWithProviders(
+      <EventDetailsScreen />,
+    );
+
+    expect(await findByText("Game Full")).toBeTruthy();
+    expect(queryByText("Join Game")).toBeNull();
+    expect(eventApi.joinEventApi).not.toHaveBeenCalled();
+  });
+
   it("shows the game's status badge", async () => {
     (useLocalSearchParams as jest.Mock).mockReturnValue({ id: "1" });
 
@@ -156,5 +169,25 @@ describe("EventDetailsScreen", () => {
 
     // Back to Join Game
     expect(await findByText("Join Game")).toBeTruthy();
+  });
+
+  it("shows a server full error when the event fills before joining", async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: "1" });
+    (eventApi.joinEventApi as jest.Mock).mockRejectedValueOnce(
+      new Error("Event is full"),
+    );
+
+    const { findByTestId, findByText } = await renderWithProviders(
+      <EventDetailsScreen />,
+    );
+
+    await act(async () => {
+      fireEvent.press(await findByText("Join Game"));
+    });
+
+    expect(await findByTestId("event-action-error")).toHaveTextContent(
+      "Event is full",
+    );
+    expect(eventApi.fetchEvents).toHaveBeenCalledTimes(2);
   });
 });

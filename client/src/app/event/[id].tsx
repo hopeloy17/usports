@@ -7,13 +7,19 @@ import { colors, commonStyles } from "../../styles/common";
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { events, toggleJoin } = useEvents();
+  const { error, events, toggleJoin } = useEvents();
 
   // Find the exact event from our master list
   const event = events.find((e) => e.id === id);
 
   // If the event is not found, display an error message
   if (!event) return <Text style={{ padding: 40 }}>Event not found.</Text>;
+
+  const isFull =
+    event.status === "full" ||
+    (event.maxPlayers !== undefined && event.joinedCount >= event.maxPlayers);
+  const canLeave = event.isJoinedByMe && event.status !== "cancelled";
+  const canJoin = !event.isJoinedByMe && !isFull && event.status !== "cancelled";
 
   return (
     <ScrollView style={commonStyles.container} contentContainerStyle={styles.content}>
@@ -49,14 +55,24 @@ export default function EventDetailsScreen() {
         )}
       </View>
 
+      {error && (
+        <Text testID="event-action-error" style={styles.errorText}>
+          {error}
+        </Text>
+      )}
+
       <Pressable
         testID="join-leave-button"
         style={[
           commonStyles.button,
           styles.joinButton,
           event.isJoinedByMe && styles.leaveButton,
+          !canJoin && !canLeave && styles.disabledButton,
         ]}
-        onPress={() => toggleJoin(event.id)}
+        disabled={!canJoin && !canLeave}
+        onPress={() => {
+          void toggleJoin(event.id).catch(() => undefined);
+        }}
       >
         <Text
           style={[
@@ -65,7 +81,13 @@ export default function EventDetailsScreen() {
             event.isJoinedByMe && styles.leaveButtonText,
           ]}
         >
-          {event.isJoinedByMe ? "Leave Game" : "Join Game"}
+          {event.isJoinedByMe
+            ? "Leave Game"
+            : isFull
+              ? "Game Full"
+              : event.status === "cancelled"
+                ? "Game Cancelled"
+                : "Join Game"}
         </Text>
       </Pressable>
 
@@ -130,6 +152,8 @@ const styles = StyleSheet.create({
   },
   joinButtonText: { fontSize: 18 },
   leaveButtonText: { color: colors.danger },
+  disabledButton: { opacity: 0.6 },
+  errorText: { color: colors.danger, textAlign: "center" },
   rosterSection: { marginTop: 10 },
   rosterItem: {
     padding: 12,
