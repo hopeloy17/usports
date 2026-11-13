@@ -9,7 +9,7 @@ describe("ProfileContext", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (profileApi.fetchProfile as jest.Mock).mockResolvedValue({
-      id: "11111111-1111-4111-8111-111111111111",
+      id: "11111111-1111-1111-1111-111111111111",
       name: "You",
       schoolEmail: "student@calvin.edu",
       classYear: null,
@@ -18,7 +18,7 @@ describe("ProfileContext", () => {
     });
     (profileApi.updateProfileApi as jest.Mock).mockImplementation(
       async (_userId: string, updates: profileApi.UpdateProfileInput) => ({
-        id: "11111111-1111-4111-8111-111111111111",
+        id: "11111111-1111-1111-1111-111111111111",
         name: updates.name ?? "You",
         schoolEmail: "student@calvin.edu",
         classYear: updates.classYear ?? 2027,
@@ -36,7 +36,7 @@ describe("ProfileContext", () => {
     const { result } = await renderHook(() => useProfile(), { wrapper });
 
     expect(result.current.profile).toEqual({
-      id: "11111111-1111-4111-8111-111111111111",
+      id: "11111111-1111-1111-1111-111111111111",
       displayName: "You",
       email: "student@calvin.edu",
       skillLevel: "Intermediate",
@@ -61,7 +61,7 @@ describe("ProfileContext", () => {
     expect(result.current.profile.skillLevel).toBe("Advanced");
     expect(result.current.profile.email).toBe("student@calvin.edu");
     expect(profileApi.updateProfileApi).toHaveBeenCalledWith(
-      "11111111-1111-4111-8111-111111111111",
+      "11111111-1111-1111-1111-111111111111",
       {
         name: "Taylor Swift",
       },

@@ -109,7 +109,7 @@ describe("EventContext", () => {
     expect(updatedEvent.roster).toContain("You");
     expect(eventApi.joinEventApi).toHaveBeenCalledWith(
       "1",
-      "11111111-1111-4111-8111-111111111111",
+      "11111111-1111-1111-1111-111111111111",
     );
   });
 
@@ -181,7 +181,7 @@ describe("EventContext", () => {
     expect(result.current.events[0].roster).not.toContain("You");
     expect(eventApi.leaveEventApi).toHaveBeenCalledWith(
       targetId,
-      "11111111-1111-4111-8111-111111111111",
+      "11111111-1111-1111-1111-111111111111",
     );
   });
 

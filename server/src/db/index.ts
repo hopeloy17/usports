@@ -12,6 +12,18 @@ export interface EventRowFilter {
   date?: string;
 }
 
+function firstRelation<T>(relation: T | T[] | null | undefined): T | undefined {
+  return Array.isArray(relation) ? relation[0] : relation ?? undefined;
+}
+
+function relationList<T>(relation: T | T[] | null | undefined): T[] {
+  return relation === null || relation === undefined
+    ? []
+    : Array.isArray(relation)
+      ? relation
+      : [relation];
+}
+
 export async function getEventRows(
   filters: EventRowFilter = {},
 ): Promise<DatabaseEventRow[]> {
@@ -49,9 +61,9 @@ export async function getEventRows(
   }
 
   return (data ?? []).map((row) => {
-    const host = row.host[0];
-    const sport = row.sport[0];
-    const venue = row.venue[0];
+    const host = firstRelation(row.host);
+    const sport = firstRelation(row.sport);
+    const venue = firstRelation(row.venue);
 
     if (!host || !sport || !venue) {
       throw new Error(`getEventRows error: incomplete event relationship data`);
@@ -62,8 +74,8 @@ export async function getEventRows(
       host,
       sport,
       venue,
-      participants: row.participants.map((participant) => {
-        const user = participant.user[0];
+      participants: relationList(row.participants).map((participant) => {
+        const user = firstRelation(participant.user);
 
         if (!user) {
           throw new Error(`getEventRows error: incomplete participant data`);

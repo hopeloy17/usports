@@ -14,6 +14,7 @@ import {
   leaveEventApi,
   ServerEvent,
 } from "../api/events";
+import { DEFAULT_USER_ID } from "../api/profile";
 import { EventStatus } from "../styles/common";
 import type { EventFilters } from "../utils/filterEvents";
 import { ProfileContext, SkillLevel } from "./ProfileContext";
@@ -90,7 +91,7 @@ export function EventProvider({
 }) {
   const profileContext = useContext(ProfileContext);
   const currentUserId =
-    profileContext?.profile.id || "11111111-1111-4111-8111-111111111111";
+    profileContext?.profile.id || DEFAULT_USER_ID;
   const currentUser = profileContext?.profile.displayName || "You";
 
   const createdEventIdsRef = useRef<Set<string>>(new Set());

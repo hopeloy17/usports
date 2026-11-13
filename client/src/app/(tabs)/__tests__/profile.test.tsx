@@ -57,7 +57,7 @@ describe("ProfileScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (profileApi.fetchProfile as jest.Mock).mockResolvedValue({
-      id: "11111111-1111-4111-8111-111111111111",
+      id: "11111111-1111-1111-1111-111111111111",
       name: "You",
       schoolEmail: "student@calvin.edu",
       classYear: 2027,
@@ -66,7 +66,7 @@ describe("ProfileScreen", () => {
     });
     (profileApi.updateProfileApi as jest.Mock).mockImplementation(
       async (_userId: string, updates: profileApi.UpdateProfileInput) => ({
-        id: "11111111-1111-4111-8111-111111111111",
+        id: "11111111-1111-1111-1111-111111111111",
         name: updates.name ?? "You",
         schoolEmail: "student@calvin.edu",
         classYear: updates.classYear ?? 2027,
@@ -83,7 +83,7 @@ describe("ProfileScreen", () => {
         return {
           ...target,
           joinedCount: target.joinedCount + 1,
-          roster: [...target.roster, participant === "11111111-1111-4111-8111-111111111111" ? "You" : participant],
+          roster: [...target.roster, participant === "11111111-1111-1111-1111-111111111111" ? "You" : participant],
         };
       },
     );

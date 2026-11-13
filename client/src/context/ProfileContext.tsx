@@ -5,7 +5,11 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { fetchProfile, updateProfileApi } from "../api/profile";
+import {
+  DEFAULT_USER_ID,
+  fetchProfile,
+  updateProfileApi,
+} from "../api/profile";
 
 // Self-reported skill tiers from the SRS (informational labels only)
 export const SKILL_LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
@@ -37,7 +41,7 @@ export const ProfileContext = createContext<ProfileContextType | undefined>(
 
 // Mock signed-in student until auth is wired up
 const initialProfile: Profile = {
-  id: "11111111-1111-4111-8111-111111111111",
+  id: DEFAULT_USER_ID,
   displayName: "You",
   email: "student@calvin.edu",
   skillLevel: "Intermediate",
