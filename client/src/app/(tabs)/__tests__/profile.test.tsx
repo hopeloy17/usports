@@ -83,7 +83,7 @@ describe("ProfileScreen", () => {
         return {
           ...target,
           joinedCount: target.joinedCount + 1,
-          roster: [...target.roster, participant],
+          roster: [...target.roster, participant === "11111111-1111-4111-8111-111111111111" ? "You" : participant],
         };
       },
     );
