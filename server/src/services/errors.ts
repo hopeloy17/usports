@@ -25,3 +25,9 @@ export class UnauthorizedError extends Error {
 export class ForbiddenError extends Error {
   name = "ForbiddenError";
 }
+
+// Too many requests in a short time, such as Supabase's hourly limit on
+// confirmation emails (429)
+export class TooManyRequestsError extends Error {
+  name = "TooManyRequestsError";
+}

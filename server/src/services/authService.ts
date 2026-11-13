@@ -7,7 +7,13 @@
 // Supabase does the rest: it stores the password securely, sends the confirmation email,
 // and refuses to sign in anyone who hasn't clicked the link in that email yet.
 import { authClient } from "../db/client";
-import { ConflictError, ForbiddenError, UnauthorizedError, ValidationError } from "./errors";
+import {
+  ConflictError,
+  ForbiddenError,
+  TooManyRequestsError,
+  UnauthorizedError,
+  ValidationError,
+} from "./errors";
 
 // ---------------------------------------------------------------------------
 // The messages students see. The route tests (tests/auth.test.ts) check this exact wording.
@@ -19,6 +25,7 @@ const ALREADY_REGISTERED = "An account with this email already exists";
 const WEAK_PASSWORD = "Password is too weak; please choose a longer password";
 const NOT_VERIFIED = "Please verify your email before signing in";
 const BAD_LOGIN = "Invalid email or password";
+const TOO_MANY = "Too many attempts; please wait a few minutes and try again";
 
 // A Calvin address: one or more characters that are neither spaces nor "@", then exactly
 // "@calvin.edu" at the very end. Anchored at both ends (^ and $), so look-alikes such as
@@ -29,6 +36,10 @@ const CALVIN_EMAIL_PATTERN = /^[^\s@]+@calvin\.edu$/;
 // Supabase error codes that mean "an account with this email already exists"
 // (Supabase only returns these when email confirmations are off; see signUpStudent)
 const ALREADY_REGISTERED_CODES = ["user_already_exists", "email_exists"];
+
+// Supabase error codes for its rate limits: too many confirmation emails sent this hour,
+// or too many auth requests in a short time
+const RATE_LIMIT_CODES = ["over_email_send_rate_limit", "over_request_rate_limit"];
 
 // What a successful sign-up sends back to the app
 export type SignUpResult = {
@@ -62,6 +73,7 @@ type Credentials = {
  * @throws ValidationError if the email or password is missing or not text, if the email is not
  *   a calvin.edu address (Supabase is not called), or if Supabase says the password is too weak
  * @throws ConflictError if a confirmed account with this email already exists
+ * @throws TooManyRequestsError if Supabase's email or request rate limit has been hit
  * @throws Error for any other Supabase failure; the error handler turns it into a 500
  */
 export async function signUpStudent(input: unknown): Promise<SignUpResult> {
@@ -71,6 +83,8 @@ export async function signUpStudent(input: unknown): Promise<SignUpResult> {
   const { data, error } = await authClient.auth.signUp({ email, password });
 
   if (error) {
+    throwIfRateLimited(error.code);
+
     if (error.code !== undefined && ALREADY_REGISTERED_CODES.includes(error.code)) {
       throw new ConflictError(ALREADY_REGISTERED);
     }
@@ -104,6 +118,7 @@ export async function signUpStudent(input: unknown): Promise<SignUpResult> {
  * @throws UnauthorizedError if the email or password is wrong (one message for both, so nobody
  *   can tell which emails have accounts)
  * @throws ForbiddenError if the student hasn't confirmed their email yet
+ * @throws TooManyRequestsError if Supabase's request rate limit has been hit
  * @throws Error for any other Supabase failure; the error handler turns it into a 500
  */
 export async function signInStudent(input: unknown): Promise<SignInResult> {
@@ -114,6 +129,8 @@ export async function signInStudent(input: unknown): Promise<SignInResult> {
   const { data, error } = await authClient.auth.signInWithPassword({ email, password });
 
   if (error) {
+    throwIfRateLimited(error.code);
+
     if (error.code === "email_not_confirmed") {
       throw new ForbiddenError(NOT_VERIFIED);
     }
@@ -133,6 +150,14 @@ export async function signInStudent(input: unknown): Promise<SignInResult> {
   }
 
   return { userId: data.user.id, accessToken: data.session.access_token };
+}
+
+// Turns either of Supabase's rate-limit error codes into a clear 429 for the student.
+// Shared by sign-up and sign-in so both use the same wording.
+function throwIfRateLimited(code: string | undefined): void {
+  if (code !== undefined && RATE_LIMIT_CODES.includes(code)) {
+    throw new TooManyRequestsError(TOO_MANY);
+  }
 }
 
 // Checks the request body has a text email and password, and that the email is a

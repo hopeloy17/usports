@@ -3,6 +3,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  TooManyRequestsError,
   UnauthorizedError,
   ValidationError,
 } from "../services/errors";
@@ -53,6 +54,12 @@ export function errorHandler(
   // Signed-in identity is known but not allowed in yet (e.g. email not confirmed)
   if (error instanceof ForbiddenError) {
     response.status(403).json({ error: error.message });
+    return;
+  }
+
+  // Rate-limited (e.g. too many sign-up emails this hour): the caller should wait and retry
+  if (error instanceof TooManyRequestsError) {
+    response.status(429).json({ error: error.message });
     return;
   }
 

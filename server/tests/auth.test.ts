@@ -46,6 +46,7 @@ const ALREADY_REGISTERED = "An account with this email already exists";
 const WEAK_PASSWORD = "Password is too weak; please choose a longer password";
 const NOT_VERIFIED = "Please verify your email before signing in";
 const BAD_LOGIN = "Invalid email or password";
+const TOO_MANY = "Too many attempts; please wait a few minutes and try again";
 
 // A valid student and their details, reused across tests
 const EMAIL = "jdoe12@calvin.edu";
@@ -315,6 +316,22 @@ describe("POST /api/auth/accounts", () => {
     });
   });
 
+  describe("rate limits", () => {
+    // Supabase limits how many confirmation emails a project can send per hour, and how many
+    // auth requests can come in. Hitting either must give a clear 429, not a vague 500.
+    it.each([
+      ["too many confirmation emails sent", "over_email_send_rate_limit"],
+      ["too many requests", "over_request_rate_limit"],
+    ])("returns 429 with a clear message when Supabase reports %s (%s)", async (_label, code) => {
+      mockedSignUp.mockResolvedValue(supabaseError(code, "Rate limit exceeded", 429));
+
+      const response = await postSignUp({ email: EMAIL, password: PASSWORD });
+
+      expect(response.status).toBe(429);
+      expect(response.body).toEqual({ error: TOO_MANY });
+    });
+  });
+
   describe("Supabase failures", () => {
     it("returns 500 without leaking Supabase's message for an unexpected error", async () => {
       silenceErrorLog();
@@ -415,6 +432,20 @@ describe("POST /api/auth/sessions", () => {
 
       expect(response.status).toBe(401);
       expect(response.body).toEqual({ error: BAD_LOGIN });
+    });
+  });
+
+  describe("rate limits", () => {
+    // Repeated sign-in attempts (e.g. someone guessing passwords) get rate-limited by Supabase
+    it("returns 429 with a clear message when Supabase reports too many requests", async () => {
+      mockedSignIn.mockResolvedValue(
+        supabaseError("over_request_rate_limit", "Rate limit exceeded", 429),
+      );
+
+      const response = await postSignIn({ email: EMAIL, password: PASSWORD });
+
+      expect(response.status).toBe(429);
+      expect(response.body).toEqual({ error: TOO_MANY });
     });
   });
 
