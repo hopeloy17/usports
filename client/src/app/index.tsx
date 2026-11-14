@@ -1,6 +1,7 @@
 import { Redirect } from "expo-router";
 
 export default function RootIndex() {
-  // Redirect immediately to the tabs layout
-  return <Redirect href="/(tabs)" />;
+  // Students must sign in (with a verified calvin.edu email) before using the app,
+  // so opening it always lands on the sign-in screen; signing in then goes to the feed
+  return <Redirect href="/sign-in" />;
 }

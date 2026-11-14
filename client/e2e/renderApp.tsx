@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Stack, router } from "expo-router";
+import { Redirect, Stack, router } from "expo-router";
 import { act } from "expo-router/testing-library";
 import { renderRouter } from "expo-router/testing-library";
 import HostScreen from "../src/app/host";
 import EventDetailsScreen from "../src/app/event/[id]";
-import RootIndex from "../src/app/index";
 import FeedScreen from "../src/app/(tabs)/index";
 import ProfileScreen from "../src/app/(tabs)/profile";
 import { EventProvider } from "../src/context/EventContext";
@@ -68,12 +67,20 @@ function TestTabsLayout() {
   return <Stack screenOptions={{ headerShown: false }} />;
 }
 
+// Stands in for src/app/index.tsx: an already-signed-in student opens the app on the feed
+function SignedInIndex() {
+  return <Redirect href="/(tabs)" />;
+}
+
 // Renders the whole app signed in as `student`
 export async function renderApp(student: Profile) {
   return await renderRouter(
     {
       _layout: makeRootLayout(student),
-      index: RootIndex,
+      // The real entry route sends students to sign in first (tested in
+      // src/app/__tests__/index.test.tsx). These students are already signed in,
+      // so "/" goes straight to the feed instead.
+      index: SignedInIndex,
       "(tabs)/_layout": TestTabsLayout,
       "(tabs)/index": FeedScreen,
       "(tabs)/profile": ProfileScreen,
