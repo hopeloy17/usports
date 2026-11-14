@@ -13,6 +13,22 @@ export const colors = {
   glassTint: "rgba(0, 86, 179, 0.18)",        // <- here
   surfaceTranslucent: "rgba(255, 255, 255, 0.6)",
 
+  // Calvin brand (official values from the 2026 Calvin brand standards PDF).
+  // Used by the sign-in screen; switching the whole app's primary color is a team decision.
+  calvinMaroon: "#8C2131",     // Classic Maroon: primary actions, links, focus rings
+  calvinGold: "#F3CD00",       // Classic Gold: accents only (fails contrast as text on white)
+  heroBackground: "#2A0B12",   // Deep maroon behind the sign-in hero
+  // Input borders need 3:1 contrast with white (WCAG 1.4.11); inputBorder (#CED4DA) is only ~1.5:1
+  inputBorderStrong: "#868E96",
+
+  // Message boxes: tinted background, border in the same hue, dark text (all >= 4.5:1)
+  errorBackground: "#FEE2E2",
+  errorBorder: "#EF4444",
+  errorText: "#B91C1C",
+  successBackground: "#DCFCE7",
+  successBorder: "#22C55E",
+  successText: "#166534",
+
   // Alerts and information modals
   success: "#35DC46",
   danger: "#DC3545",

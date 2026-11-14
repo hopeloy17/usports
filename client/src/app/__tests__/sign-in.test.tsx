@@ -6,6 +6,7 @@
 // a non-Calvin email, an already-registered email, or an email that isn't verified yet.
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
+import { StyleSheet } from "react-native";
 import { router } from "expo-router";
 import * as authApi from "../../api/auth";
 import type { SignInResult } from "../../api/auth";
@@ -36,6 +37,10 @@ const ALREADY_REGISTERED = "An account with this email already exists";
 const TOO_MANY = "Too many attempts; please wait a few minutes and try again";
 const NOT_VERIFIED = "Please verify your email before signing in";
 const BAD_LOGIN = "Invalid email or password";
+
+// The screen's own wording for each mode (heading + one line on why)
+const SIGN_IN_SUBTITLE = "Use your Calvin email to find pickup games.";
+const SIGN_UP_SUBTITLE = "Use your Calvin email. Any sport, any skill level.";
 
 // A request the test finishes by hand, so it can look at the screen while it's still waiting.
 // Note: `await fireEvent.press(...)` waits for the press handler to finish (RNTL v14 returns
@@ -86,8 +91,82 @@ describe("SignInScreen: signing in", () => {
 
     expect(getByLabelText("Calvin email")).toBeTruthy();
     expect(getByLabelText("Password")).toBeTruthy();
-    expect(getByText("Sign in with your Calvin email")).toBeTruthy();
+    expect(getByText(SIGN_IN_SUBTITLE)).toBeTruthy();
     expect(getByTestId("auth-submit")).toHaveTextContent("Sign in");
+  });
+
+  it("names the task in a heading screen readers can jump to", async () => {
+    const { getByText } = await renderScreen();
+
+    // The one heading on the screen says what this screen is for
+    expect(getByText("Sign in to USports").props.accessibilityRole).toBe("header");
+  });
+
+  it("lets a password manager fill in the email and saved password", async () => {
+    const { getByLabelText } = await renderScreen();
+
+    // "username" pairs the email with the password, so autofill offers the saved login
+    expect(getByLabelText("Calvin email").props.autoComplete).toBe("username");
+    expect(getByLabelText("Calvin email").props.textContentType).toBe("username");
+    expect(getByLabelText("Calvin email").props.autoCorrect).toBe(false);
+    // Signing in uses an existing password
+    expect(getByLabelText("Password").props.autoComplete).toBe("current-password");
+    expect(getByLabelText("Password").props.textContentType).toBe("password");
+  });
+
+  it("turns off the browser's own focus outline on both fields (our maroon ring replaces it)", async () => {
+    const { getByLabelText } = await renderScreen();
+
+    // Chrome's default focus outline is `outline-style: auto`, which ignores outline-width,
+    // so the style must switch to "solid" AND set the width to 0 to draw nothing
+    for (const label of ["Calvin email", "Password"]) {
+      const style = StyleSheet.flatten(getByLabelText(label).props.style);
+      expect(style.outlineStyle).toBe("solid");
+      expect(style.outlineWidth).toBe(0);
+    }
+  });
+
+  it("has a Show password button that reveals the password, then hides it again", async () => {
+    const { getByLabelText, getByText } = await renderScreen();
+
+    // Hidden to start, with a button that says what it will do
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(true);
+    expect(getByLabelText("Show password").props.accessibilityRole).toBe("button");
+    expect(getByText("Show")).toBeTruthy();
+
+    // Reveal: the text is readable and the button's label flips to "Hide"
+    await fireEvent.press(getByLabelText("Show password"));
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(false);
+    expect(getByLabelText("Hide password")).toBeTruthy();
+    expect(getByText("Hide")).toBeTruthy();
+
+    // Hide again
+    await fireEvent.press(getByLabelText("Hide password"));
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(true);
+  });
+
+  it("uses the keyboard's next key on email without submitting the form", async () => {
+    const { getByLabelText, typeCredentials } = await renderScreen();
+    const emailField = getByLabelText("Calvin email");
+
+    // "next" (not "return") tells the student the keyboard moves on to the password
+    expect(emailField.props.returnKeyType).toBe("next");
+
+    // Pressing it must not send anything yet
+    await typeCredentials(EMAIL, PASSWORD);
+    await fireEvent(emailField, "submitEditing");
+    expect(mockedSignIn).not.toHaveBeenCalled();
+  });
+
+  it("submits from the keyboard's go key on the password field", async () => {
+    mockedSignIn.mockResolvedValue({ userId: "u1", accessToken: "token" });
+    const { getByLabelText, typeCredentials } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    expect(getByLabelText("Password").props.returnKeyType).toBe("go");
+    await fireEvent(getByLabelText("Password"), "submitEditing");
+
+    expect(mockedSignIn).toHaveBeenCalledWith(EMAIL, PASSWORD);
   });
 
   it("hides the password as it is typed", async () => {
@@ -233,8 +312,43 @@ describe("SignInScreen: creating an account", () => {
 
     await toggleMode();
 
-    expect(getByText("Create an account with your Calvin email")).toBeTruthy();
+    expect(getByText("Create your account")).toBeTruthy();
+    expect(getByText(SIGN_UP_SUBTITLE)).toBeTruthy();
     expect(getByTestId("auth-submit")).toHaveTextContent("Create account");
+    expect(getByTestId("auth-toggle-mode")).toHaveTextContent("Already have an account? Sign in");
+  });
+
+  it("asks the password manager for a new password when creating an account", async () => {
+    const { toggleMode, getByLabelText } = await renderScreen();
+
+    await toggleMode();
+
+    // "new-password" lets iOS/Android suggest a strong password and save it
+    expect(getByLabelText("Password").props.autoComplete).toBe("new-password");
+    expect(getByLabelText("Password").props.textContentType).toBe("newPassword");
+  });
+
+  it("shows the password rule under the field in create-account mode", async () => {
+    const { toggleMode, getByText, getByLabelText } = await renderScreen();
+
+    await toggleMode();
+
+    // Visible before typing, and it matches the server's rule (supabase/config.toml: minimum_password_length = 6)
+    expect(getByText("Use at least 6 characters.")).toBeTruthy();
+    // Screen readers hear the rule when they reach the password field
+    expect(getByLabelText("Password").props.accessibilityHint).toBe("Use at least 6 characters.");
+  });
+
+  it("hides the password rule again in sign-in mode", async () => {
+    const { toggleMode, queryByText } = await renderScreen();
+
+    // Starts in sign-in mode: no rule (signing in doesn't create a password)
+    expect(queryByText("Use at least 6 characters.")).toBeNull();
+
+    // Create account, then back to sign in: the rule goes away again
+    await toggleMode();
+    await toggleMode();
+    expect(queryByText("Use at least 6 characters.")).toBeNull();
   });
 
   it("sends the typed email and password to signUp, not signIn", async () => {
@@ -371,7 +485,9 @@ describe("SignInScreen: creating an account", () => {
     await toggleMode();
     await toggleMode();
 
-    expect(getByText("Sign in with your Calvin email")).toBeTruthy();
+    expect(getByText("Sign in to USports")).toBeTruthy();
+    expect(getByText(SIGN_IN_SUBTITLE)).toBeTruthy();
     expect(getByTestId("auth-submit")).toHaveTextContent("Sign in");
+    expect(getByTestId("auth-toggle-mode")).toHaveTextContent("New to USports? Create an account");
   });
 });
