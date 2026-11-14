@@ -135,158 +135,164 @@ export default function SignInScreen() {
       <View style={styles.hero}>
         <CourtLines />
 
-        <View style={styles.brandRow}>
-          <View style={styles.mark}>
-            <BallGlyph />
+        {/* Logo + slogan share the form's centered column, so they line up on wide screens */}
+        <View testID="auth-hero-column" style={[styles.column, styles.heroColumn]}>
+          <View style={styles.brandRow}>
+            <View style={styles.mark}>
+              <BallGlyph />
+            </View>
+            <Text style={styles.wordmark}>USPORTS</Text>
           </View>
-          <Text style={styles.wordmark}>USPORTS</Text>
-        </View>
 
-        <Text style={styles.slogan}>
-          Find a game.{"\n"}
-          <Text style={styles.sloganAccent}>Grab your spot.</Text>
-        </Text>
+          <Text style={styles.slogan}>
+            Find a game.{"\n"}
+            <Text style={styles.sloganAccent}>Grab your spot.</Text>
+          </Text>
+        </View>
       </View>
 
       {/* ---------- Sheet: the form, always on solid white ---------- */}
       <View style={styles.sheet}>
-        <View style={styles.header}>
-          {/* The one heading: says what this screen is for */}
-          <Text style={styles.title} accessibilityRole="header">
-            {text.title}
-          </Text>
-          <Text style={styles.subtitle}>{text.subtitle}</Text>
-        </View>
-
-        <View style={styles.form}>
-          {/* Email: email keyboard, no auto-capitalizing or autocorrecting the address */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Calvin email</Text>
-            <TextInput
-              testID="auth-email"
-              accessibilityLabel="Calvin email"
-              style={[styles.input, focusedField === "email" && styles.inputFocused]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@calvin.edu"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              // "username" pairs the email with the password so autofill offers the saved login
-              autoComplete="username"
-              textContentType="username"
-              // "next" moves on to the password instead of submitting; keep the keyboard up
-              returnKeyType="next"
-              submitBehavior="submit"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              onFocus={() => setFocusedField("email")}
-              onBlur={() => setFocusedField(null)}
-            />
+        {/* Everything on the sheet sits in one centered column, capped for wide screens */}
+        <View testID="auth-form-column" style={[styles.column, styles.sheetColumn]}>
+          <View style={styles.header}>
+            {/* The one heading: says what this screen is for */}
+            <Text style={styles.title} accessibilityRole="header">
+              {text.title}
+            </Text>
+            <Text style={styles.subtitle}>{text.subtitle}</Text>
           </View>
 
-          {/* Password: hidden unless the student taps Show; autofill hint depends on the mode */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <View style={[styles.inputRow, focusedField === "password" && styles.inputFocused]}>
+          <View style={styles.form}>
+            {/* Email: email keyboard, no auto-capitalizing or autocorrecting the address */}
+            <View style={styles.field}>
+              <Text style={styles.label}>Calvin email</Text>
               <TextInput
-                ref={passwordRef}
-                testID="auth-password"
-                accessibilityLabel="Password"
-                style={styles.inputInRow}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={mode === "signUp" ? "Create a password" : "Your password"}
+                testID="auth-email"
+                accessibilityLabel="Calvin email"
+                style={[styles.input, focusedField === "email" && styles.inputFocused]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@calvin.edu"
                 placeholderTextColor={colors.textMuted}
-                secureTextEntry={!showPassword}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                autoComplete={mode === "signUp" ? "new-password" : "current-password"}
-                textContentType={mode === "signUp" ? "newPassword" : "password"}
-                returnKeyType="go"
-                // Pressing "go" on the keyboard submits, like pressing the button
-                onSubmitEditing={handleSubmit}
-                // Screen readers hear the rule when they reach the field (only when creating a password)
-                accessibilityHint={mode === "signUp" ? PASSWORD_RULE : undefined}
-                onFocus={() => setFocusedField("password")}
+                // "username" pairs the email with the password so autofill offers the saved login
+                autoComplete="username"
+                textContentType="username"
+                // "next" moves on to the password instead of submitting; keep the keyboard up
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                onFocus={() => setFocusedField("email")}
                 onBlur={() => setFocusedField(null)}
               />
-              {/* A real button whose label says what it will do next */}
-              <Pressable
-                testID="auth-show-password"
-                accessibilityRole="button"
-                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                style={styles.showToggle}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Text style={styles.linkText}>{showPassword ? "Hide" : "Show"}</Text>
-              </Pressable>
             </View>
 
-            {/* The password rule, visible before typing; only when creating an account */}
-            {mode === "signUp" && <Text style={styles.helperText}>{PASSWORD_RULE}</Text>}
+            {/* Password: hidden unless the student taps Show; autofill hint depends on the mode */}
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <View style={[styles.inputRow, focusedField === "password" && styles.inputFocused]}>
+                <TextInput
+                  ref={passwordRef}
+                  testID="auth-password"
+                  accessibilityLabel="Password"
+                  style={styles.inputInRow}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={mode === "signUp" ? "Create a password" : "Your password"}
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete={mode === "signUp" ? "new-password" : "current-password"}
+                  textContentType={mode === "signUp" ? "newPassword" : "password"}
+                  returnKeyType="go"
+                  // Pressing "go" on the keyboard submits, like pressing the button
+                  onSubmitEditing={handleSubmit}
+                  // Screen readers hear the rule when they reach the field (only when creating a password)
+                  accessibilityHint={mode === "signUp" ? PASSWORD_RULE : undefined}
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                />
+                {/* A real button whose label says what it will do next */}
+                <Pressable
+                  testID="auth-show-password"
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                  style={styles.showToggle}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.linkText}>{showPassword ? "Hide" : "Show"}</Text>
+                </Pressable>
+              </View>
+
+              {/* The password rule, visible before typing; only when creating an account */}
+              {mode === "signUp" && <Text style={styles.helperText}>{PASSWORD_RULE}</Text>}
+            </View>
+
+            {/* Form-level messages sit just above the button. Words + icon, never color alone,
+                and announced to screen readers (NFR-5) */}
+            {errorMessage && (
+              <View style={[styles.messageBox, styles.errorBox]}>
+                <MessageIcon glyph="!" color={colors.errorText} />
+                <Text
+                  testID="auth-error"
+                  accessibilityRole="alert"
+                  style={[styles.messageText, { color: colors.errorText }]}
+                >
+                  {errorMessage}
+                </Text>
+              </View>
+            )}
+
+            {notice && (
+              <View style={[styles.messageBox, styles.noticeBox]}>
+                <MessageIcon glyph="✓" color={colors.successText} />
+                <Text
+                  testID="auth-notice"
+                  accessibilityRole="alert"
+                  style={[styles.messageText, { color: colors.successText }]}
+                >
+                  {notice}
+                  {"\n"}
+                  {AFTER_SIGN_UP_HINT}
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Form-level messages sit just above the button. Words + icon, never color alone,
-              and announced to screen readers (NFR-5) */}
-          {errorMessage && (
-            <View style={[styles.messageBox, styles.errorBox]}>
-              <MessageIcon glyph="!" color={colors.errorText} />
-              <Text
-                testID="auth-error"
-                accessibilityRole="alert"
-                style={[styles.messageText, { color: colors.errorText }]}
-              >
-                {errorMessage}
+          <View style={styles.actions}>
+            {/* Keeps its size while busy; spinner + words show progress */}
+            <Pressable
+              testID="auth-submit"
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.button,
+                pressed && styles.buttonPressed,
+                isSubmitting && styles.buttonBusy,
+              ]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <ActivityIndicator color="white" />}
+              <Text style={styles.buttonText}>{isSubmitting ? text.submitting : text.submit}</Text>
+            </Pressable>
+
+            {/* Mode switch: quiet prompt + maroon link, with a 44pt-tall tap area */}
+            <Pressable
+              testID="auth-toggle-mode"
+              accessibilityRole="button"
+              style={[styles.toggle, isSubmitting && styles.toggleBusy]}
+              onPress={toggleMode}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.togglePrompt}>
+                {text.togglePrompt} <Text style={styles.linkText}>{text.toggleLink}</Text>
               </Text>
-            </View>
-          )}
-
-          {notice && (
-            <View style={[styles.messageBox, styles.noticeBox]}>
-              <MessageIcon glyph="✓" color={colors.successText} />
-              <Text
-                testID="auth-notice"
-                accessibilityRole="alert"
-                style={[styles.messageText, { color: colors.successText }]}
-              >
-                {notice}
-                {"\n"}
-                {AFTER_SIGN_UP_HINT}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.actions}>
-          {/* Keeps its size while busy; spinner + words show progress */}
-          <Pressable
-            testID="auth-submit"
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.button,
-              pressed && styles.buttonPressed,
-              isSubmitting && styles.buttonBusy,
-            ]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting && <ActivityIndicator color="white" />}
-            <Text style={styles.buttonText}>{isSubmitting ? text.submitting : text.submit}</Text>
-          </Pressable>
-
-          {/* Mode switch: quiet prompt + maroon link, with a 44pt-tall tap area */}
-          <Pressable
-            testID="auth-toggle-mode"
-            accessibilityRole="button"
-            style={[styles.toggle, isSubmitting && styles.toggleBusy]}
-            onPress={toggleMode}
-            disabled={isSubmitting}
-          >
-            <Text style={styles.togglePrompt}>
-              {text.togglePrompt} <Text style={styles.linkText}>{text.toggleLink}</Text>
-            </Text>
-          </Pressable>
+            </Pressable>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -313,12 +319,16 @@ function CourtLines() {
   );
 }
 
-// A ball drawn with a circle and two seams, in Calvin maroon on the gold tile
+// A basketball in Calvin maroon on the gold tile: the outline, a vertical and a horizontal
+// seam, and two curved side seams. Each side seam is a circle that sits mostly outside the
+// ball; the ball clips it (overflow: hidden), so only its inner curve shows, like ")" and "("
 function BallGlyph() {
   return (
     <View style={styles.ball}>
       <View style={styles.ballSeamVertical} />
       <View style={styles.ballSeamHorizontal} />
+      <View style={[styles.ballSideSeam, styles.ballSideSeamLeft]} />
+      <View style={[styles.ballSideSeam, styles.ballSideSeamRight]} />
     </View>
   );
 }
@@ -342,10 +352,16 @@ function MessageIcon({ glyph, color }: { glyph: string; color: string }) {
 // ---------------------------------------------------------------------------
 const CONTROL_RADIUS = 12;
 const COURT_LINE = "rgba(243, 205, 0, 0.16)"; // Calvin gold at low opacity
+// Widest the form gets: wider inputs are harder to scan, and phones never reach it
+const FORM_MAX_WIDTH = 480;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.heroBackground },
   content: { flexGrow: 1 },
+
+  // One centered column for the hero content and the form: full width on phones,
+  // stops at FORM_MAX_WIDTH on tablets and laptops (the maroon and white still fill the window)
+  column: { width: "100%", maxWidth: FORM_MAX_WIDTH, alignSelf: "center" },
 
   // ----- Hero -----
   hero: {
@@ -353,9 +369,10 @@ const styles = StyleSheet.create({
     paddingTop: 64, // clears the status bar / notch
     paddingHorizontal: 24,
     paddingBottom: 48, // room for the sheet to overlap
-    gap: 16,
     overflow: "hidden",
   },
+  // Space between the logo row and the slogan (inside the hero's column)
+  heroColumn: { gap: 16 },
   courtCenterCircle: {
     position: "absolute",
     top: -62,
@@ -403,9 +420,22 @@ const styles = StyleSheet.create({
     borderColor: colors.calvinMaroon,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden", // clips the side seams to the ball's round edge
   },
   ballSeamVertical: { position: "absolute", width: 2.5, height: "100%", backgroundColor: colors.calvinMaroon },
   ballSeamHorizontal: { position: "absolute", height: 2.5, width: "100%", backgroundColor: colors.calvinMaroon },
+  // Side seams: a ring mostly outside the ball, so only its inner curve shows.
+  // No top/bottom offset, so the ball's justifyContent: "center" centers it vertically
+  ballSideSeam: {
+    position: "absolute",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2.5,
+    borderColor: colors.calvinMaroon,
+  },
+  ballSideSeamLeft: { left: -15 }, // pokes in from the left edge: ")"
+  ballSideSeamRight: { right: -15 }, // pokes in from the right edge: "("
   wordmark: { color: "white", fontSize: 26, fontWeight: "900", letterSpacing: 2 },
   slogan: { color: "white", fontSize: 40, lineHeight: 44, fontWeight: "900", letterSpacing: -0.5 },
   sloganAccent: { color: colors.calvinGold },
@@ -420,8 +450,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 32,
-    gap: 24,
   },
+  // Space between the heading, the form, and the buttons (inside the sheet's column)
+  sheetColumn: { gap: 24 },
   header: { gap: 4 },
   title: { fontSize: 26, lineHeight: 32, fontWeight: "bold", color: colors.textPrimary },
   subtitle: { fontSize: 16, lineHeight: 22, color: colors.textSecondary },

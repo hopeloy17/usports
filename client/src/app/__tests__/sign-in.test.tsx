@@ -4,7 +4,7 @@
 // creates an account with their calvin.edu email (and is told to check their inbox). Every
 // error the server sends back must be shown word for word, so the student knows what to fix:
 // a non-Calvin email, an already-registered email, or an email that isn't verified yet.
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import React from "react";
 import { StyleSheet } from "react-native";
 import { router } from "expo-router";
@@ -124,6 +124,27 @@ describe("SignInScreen: signing in", () => {
       expect(style.outlineStyle).toBe("solid");
       expect(style.outlineWidth).toBe(0);
     }
+  });
+
+  it("keeps the form to a readable width on wide screens, lined up with the logo", async () => {
+    const { getByTestId } = await renderScreen();
+
+    // On a laptop the window can be 1000px+ wide, and a 1000px-wide email box is hard to scan.
+    // The logo + slogan and the form each sit in a centered column: full width on phones,
+    // never wider than 480px, so the two columns line up with each other
+    for (const id of ["auth-hero-column", "auth-form-column"]) {
+      const style = StyleSheet.flatten(getByTestId(id).props.style);
+      expect(style.width).toBe("100%"); // phones: use the whole width
+      expect(style.maxWidth).toBe(480); // laptops: stop growing here
+      expect(style.alignSelf).toBe("center"); // and sit in the middle
+    }
+
+    // The logo is in the hero column; the fields and the button are in the form column
+    expect(within(getByTestId("auth-hero-column")).getByText("USPORTS")).toBeTruthy();
+    const form = within(getByTestId("auth-form-column"));
+    expect(form.getByLabelText("Calvin email")).toBeTruthy();
+    expect(form.getByLabelText("Password")).toBeTruthy();
+    expect(form.getByTestId("auth-submit")).toBeTruthy();
   });
 
   it("has a Show password button that reveals the password, then hides it again", async () => {
