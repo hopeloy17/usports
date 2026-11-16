@@ -174,8 +174,9 @@ export default function ProfileScreen() {
         <Text style={[commonStyles.sectionTitle, styles.sectionTitle]}>My Games</Text>
         {myGames.length === 0 ? (
           <View style={[commonStyles.card, styles.card]}>
+            {/* Written as a string so the apostrophe doesn't need escaping in JSX */}
             <Text style={styles.emptyText}>
-              You haven't joined any games yet.
+              {"You haven't joined any games yet."}
             </Text>
             <Link href="/(tabs)" asChild>
               <Pressable>
