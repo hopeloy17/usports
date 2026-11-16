@@ -2,10 +2,12 @@ import { Stack } from "expo-router";
 import { EventProvider } from "../context/EventContext";
 import { ProfileProvider } from "../context/ProfileContext";
 import { EventFiltersProvider } from "../context/EventFiltersContext";
+import { PushNotificationRegistrar } from "../notifications/PushNotificationRegistrar";
 
 export default function RootLayout() {
   return (
     <ProfileProvider>
+      <PushNotificationRegistrar />
       <EventFiltersProvider>
         <EventProvider>
           <Stack>

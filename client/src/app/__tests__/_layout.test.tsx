@@ -19,6 +19,12 @@ jest.mock("../../context/EventFiltersContext", () => ({
 jest.mock("../../context/EventContext", () => ({
   EventProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
+// The real registrar sets up phone notifications as soon as its file loads, which needs the
+// phone's notification system (not available in Jest). It draws nothing, so a stand-in that
+// renders nothing keeps these header tests the same
+jest.mock("../../notifications/PushNotificationRegistrar", () => ({
+  PushNotificationRegistrar: () => null,
+}));
 
 // A stand-in sign-in screen. Unlike the real one, it sets no header options of its own,
 // so the test sees exactly what the layout decides
