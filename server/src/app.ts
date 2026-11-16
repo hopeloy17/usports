@@ -10,8 +10,8 @@ app.use((_request, response, next) => {
   response.header("Access-Control-Allow-Origin", "*");
   // PUT is used by PUT /api/profile
   response.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-  // x-user-id identifies the user until sign-in exists (see auth/requestUser.ts)
-  response.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-user-id");
+  // Authorization carries the student's sign-in token (see auth/requestUser.ts)
+  response.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (_request.method === "OPTIONS") {
     response.sendStatus(204);
     return;
