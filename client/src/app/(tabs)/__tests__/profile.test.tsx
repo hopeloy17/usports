@@ -1,13 +1,22 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
+import { router } from "expo-router";
 import * as eventApi from "../../../api/events";
 import * as profileApi from "../../../api/profile";
+import { clearSession, loadSession, saveSession } from "../../../api/session";
 import { EventProvider, useEvents } from "../../../context/EventContext";
 import { ProfileProvider } from "../../../context/ProfileContext";
 import ProfileScreen from "../profile";
 
 jest.mock("../../../api/events");
 jest.mock("../../../api/profile");
+
+// Signing out navigates with router.replace; there's no real navigator in these tests, so fake
+// just that and keep the rest of expo-router (the screen's <Link>) real
+jest.mock("expo-router", () => ({
+  ...jest.requireActual("expo-router"),
+  router: { replace: jest.fn() },
+}));
 
 const mockServerEvents: eventApi.ServerEvent[] = [
   {
@@ -56,6 +65,8 @@ const renderWithProviders = async (component: React.ReactElement) => {
 describe("ProfileScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Nobody signed in on this "device" at the start of each test
+    clearSession();
     (profileApi.fetchProfile as jest.Mock).mockResolvedValue({
       id: "11111111-1111-1111-1111-111111111111",
       name: "You",
@@ -179,5 +190,18 @@ describe("ProfileScreen", () => {
 
     expect(await findByText("Basketball")).toBeTruthy();
     expect(await findByText("📍 Spoelhof Fieldhouse")).toBeTruthy();
+  });
+
+  it("has a Sign out button that forgets the student and goes back to the sign-in screen", async () => {
+    // Someone is signed in on this device
+    saveSession({ userId: "11111111-1111-1111-1111-111111111111", accessToken: "token-abc" });
+    const { getByRole } = await renderWithProviders(<ProfileScreen />);
+
+    await fireEvent.press(getByRole("button", { name: "Sign out" }));
+
+    // Forgotten on this device, so a reload won't sign them back in
+    expect(loadSession()).toBeNull();
+    // replace (not push) so the back button can't return to the signed-out profile
+    expect(router.replace).toHaveBeenCalledWith("/sign-in");
   });
 });

@@ -9,8 +9,10 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { Stack, router } from "expo-router";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signIn, signUp } from "../api/auth";
+import { useProfile } from "../context/ProfileContext";
 import { colors } from "../styles/common";
 
 // The app opens on this screen (see app/index.tsx). A student either:
@@ -78,6 +80,13 @@ export default function SignInScreen() {
   // (ComponentRef gives the instance type, which has .focus(); plain TextInput is the component type)
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
 
+  // Tells the rest of the app who signed in, so it shows their profile and games
+  const { setSignedInUser } = useProfile();
+
+  // How much of each screen edge the phone itself covers (status bar, notch, Dynamic Island).
+  // Asked from the phone instead of guessed, since it differs on every device (0 on the web)
+  const insets = useSafeAreaInsets();
+
   const text = MODE_TEXT[mode];
 
   // Sends the form to the server and shows the outcome
@@ -91,7 +100,10 @@ export default function SignInScreen() {
 
     try {
       if (mode === "signIn") {
-        await signIn(email, password);
+        const signedIn = await signIn(email, password);
+        // Remember this student (on the web, across reloads) and switch the app to them first,
+        // so the feed never opens showing someone else
+        setSignedInUser(signedIn);
         // replace (not push) so the back button can't return to this screen
         router.replace("/(tabs)");
       } else {
@@ -126,18 +138,25 @@ export default function SignInScreen() {
       // iOS: scroll the focused field and the button above the keyboard
       automaticallyAdjustKeyboardInsets
     >
-      {/* Full-screen form: no navigation header above it */}
-      <Stack.Screen options={{ headerShown: false }} />
+      {/* No header bar above this screen: set in app/_layout.tsx, so it applies from the first frame */}
       {/* White status-bar icons over the dark hero */}
       <StatusBar style="light" />
 
       {/* ---------- Hero: brand + slogan (decoration only; no form fields here) ---------- */}
-      <View style={styles.hero}>
+      {/* Starts just below the status bar / notch on every phone: that strip + the same gap */}
+      <View testID="auth-hero" style={[styles.hero, { paddingTop: insets.top + HERO_TOP_GAP }]}>
         <CourtLines />
 
         {/* Logo + slogan share the form's centered column, so they line up on wide screens */}
         <View testID="auth-hero-column" style={[styles.column, styles.heroColumn]}>
-          <View style={styles.brandRow}>
+          {/* The logo: one screen-reader stop named "USports"
+              (read as-is, the all-caps "USPORTS" can be spelled out letter by letter) */}
+          <View
+            style={styles.brandRow}
+            accessible // groups the tile + wordmark into one item
+            accessibilityRole="image" // it's a logo, not text to read
+            accessibilityLabel="USports" // what screen readers say instead
+          >
             <View style={styles.mark}>
               <BallGlyph />
             </View>
@@ -354,6 +373,8 @@ const CONTROL_RADIUS = 12;
 const COURT_LINE = "rgba(243, 205, 0, 0.16)"; // Calvin gold at low opacity
 // Widest the form gets: wider inputs are harder to scan, and phones never reach it
 const FORM_MAX_WIDTH = 480;
+// Space between the bottom of the status bar / notch and the logo; matches the hero's 24pt sides
+const HERO_TOP_GAP = 24;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.heroBackground },
@@ -366,7 +387,7 @@ const styles = StyleSheet.create({
   // ----- Hero -----
   hero: {
     backgroundColor: colors.calvinMaroon,
-    paddingTop: 64, // clears the status bar / notch
+    // paddingTop is set in the JSX: the phone's status-bar height + HERO_TOP_GAP
     paddingHorizontal: 24,
     paddingBottom: 48, // room for the sheet to overlap
     overflow: "hidden",

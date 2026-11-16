@@ -8,6 +8,7 @@ import { fireEvent, render, waitFor, within } from "@testing-library/react-nativ
 import React from "react";
 import { StyleSheet } from "react-native";
 import { router } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as authApi from "../../api/auth";
 import type { SignInResult } from "../../api/auth";
 import SignInScreen from "../sign-in";
@@ -15,11 +16,17 @@ import SignInScreen from "../sign-in";
 // Fake the API so these tests never make real network calls; each test picks the answer
 jest.mock("../../api/auth");
 
-// The screen navigates with router.replace and sets its header with <Stack.Screen>;
-// there is no real navigator in these tests, so stub both out
+// The screen navigates with router.replace; there is no real navigator in these tests,
+// so stub it out (its header is set in app/_layout.tsx, tested in _layout.test.tsx)
 jest.mock("expo-router", () => ({
   router: { replace: jest.fn() },
-  Stack: { Screen: () => null },
+}));
+
+// After signing in, the screen tells the profile context who signed in, so the app shows
+// their profile and games. Fake the context so each test can check what it was told
+const mockSetSignedInUser = jest.fn();
+jest.mock("../../context/ProfileContext", () => ({
+  useProfile: () => ({ setSignedInUser: mockSetSignedInUser }),
 }));
 
 const mockedSignIn = jest.mocked(authApi.signIn);
@@ -54,9 +61,20 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-// Renders the screen and returns its queries plus helpers that act like a student
-async function renderScreen() {
-  const screen = await render(<SignInScreen />);
+// Renders the screen and returns its queries plus helpers that act like a student.
+// topInset = how much of the top edge the phone's status bar / notch covers (0 = nothing, like
+// a web browser). The real app gets this from the SafeAreaProvider that Expo Router adds; tests
+// add their own, because useSafeAreaInsets() throws without one
+async function renderScreen({ topInset = 0 }: { topInset?: number } = {}) {
+  const metrics = {
+    frame: { x: 0, y: 0, width: 390, height: 844 }, // a typical phone screen
+    insets: { top: topInset, right: 0, bottom: 0, left: 0 },
+  };
+  const screen = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <SignInScreen />
+    </SafeAreaProvider>,
+  );
 
   // Type into the email and password fields, found by their screen-reader labels
   const typeCredentials = async (email: string, password: string) => {
@@ -102,6 +120,18 @@ describe("SignInScreen: signing in", () => {
     expect(getByText("Sign in to USports").props.accessibilityRole).toBe("header");
   });
 
+  it("reads the logo to screen readers as one item named USports, not letter by letter", async () => {
+    const { getByLabelText, getByText } = await renderScreen();
+
+    // The ball tile + wordmark are one logo: a single screen-reader stop with a real name
+    const logo = getByLabelText("USports");
+    expect(logo.props.accessible).toBe(true); // its children aren't read out separately
+    expect(logo.props.accessibilityRole).toBe("image"); // announced as a logo, like <img alt="USports">
+
+    // Sighted students still see the all-caps wordmark
+    expect(getByText("USPORTS")).toBeTruthy();
+  });
+
   it("lets a password manager fill in the email and saved password", async () => {
     const { getByLabelText } = await renderScreen();
 
@@ -145,6 +175,18 @@ describe("SignInScreen: signing in", () => {
     expect(form.getByLabelText("Calvin email")).toBeTruthy();
     expect(form.getByLabelText("Password")).toBeTruthy();
     expect(form.getByTestId("auth-submit")).toBeTruthy();
+  });
+
+  // Phones cover different amounts of the top edge (clock, notch, Dynamic Island). The logo
+  // should always start that strip + the same 24pt gap below it, not one fixed guess for every phone
+  it.each([
+    ["an iPhone with a Dynamic Island", 59, 83], // was 64: the logo nearly touched the island
+    ["an iPhone SE (no notch)", 20, 44], // was 64: lots of empty maroon above the logo
+    ["a web browser (nothing in the way)", 0, 24], // same gap as the hero's 24pt sides
+  ])("starts the logo just below the status bar on %s", async (_phone, topInset, expectedPadding) => {
+    const { getByTestId } = await renderScreen({ topInset });
+
+    expect(StyleSheet.flatten(getByTestId("auth-hero").props.style).paddingTop).toBe(expectedPadding);
   });
 
   it("has a Show password button that reveals the password, then hides it again", async () => {
@@ -226,6 +268,34 @@ describe("SignInScreen: signing in", () => {
 
     // replace (not push) so the back button can't return to the sign-in screen
     expect(mockedReplace).toHaveBeenCalledWith("/(tabs)");
+  });
+
+  it("switches the app to the student who signed in, before opening the feed", async () => {
+    mockedSignIn.mockResolvedValue({ userId: "new-student-id", accessToken: "token" });
+    const { typeCredentials, pressSubmit } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    // Their own profile and games from now on, not the demo student's. The whole sign-in
+    // (id + token) is handed over, so it can be remembered on this device
+    expect(mockSetSignedInUser).toHaveBeenCalledTimes(1);
+    expect(mockSetSignedInUser).toHaveBeenCalledWith({ userId: "new-student-id", accessToken: "token" });
+    // Switched first, so the feed never opens showing someone else
+    expect(mockSetSignedInUser.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedReplace.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("doesn't switch students when sign-in fails", async () => {
+    mockedSignIn.mockRejectedValue(new Error(BAD_LOGIN));
+    const { typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await typeCredentials(EMAIL, "wrong-password");
+    await pressSubmit();
+
+    expect(await findByText(BAD_LOGIN)).toBeTruthy();
+    expect(mockSetSignedInUser).not.toHaveBeenCalled();
   });
 
   it("blocks an unverified student: shows the verify message and stays on this screen", async () => {
@@ -413,6 +483,18 @@ describe("SignInScreen: creating an account", () => {
     expect(getByTestId("auth-submit")).toHaveTextContent("Sign in");
     expect(getByLabelText("Calvin email").props.value).toBe(EMAIL);
     expect(getByLabelText("Password").props.value).toBe("");
+  });
+
+  it("doesn't switch students after signing up (they haven't signed in yet)", async () => {
+    mockedSignUp.mockResolvedValue(CHECK_INBOX);
+    const { toggleMode, typeCredentials, pressSubmit, findByTestId } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+    await findByTestId("auth-notice");
+
+    expect(mockSetSignedInUser).not.toHaveBeenCalled();
   });
 
   it("does not go to the feed after signing up (the email isn't verified yet)", async () => {

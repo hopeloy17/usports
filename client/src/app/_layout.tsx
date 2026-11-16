@@ -10,6 +10,9 @@ export default function RootLayout() {
         <EventProvider>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            {/* Full-screen sign-in with no header bar. Set here, not only inside the screen,
+                so the bar is hidden from the first frame (including the server-rendered web page) */}
+            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
             <Stack.Screen
               name="event/[id]"
               options={{
