@@ -37,7 +37,8 @@ export function resetFallbackProfile(): void {
   };
 }
 
-const resolveUserId = (id?: string) => (id && id !== "me" ? id : DEFAULT_USER_ID);
+// The mock profile uses "me" until sign-in exists; the server needs a real user id
+export const resolveUserId = (id?: string) => (id && id !== "me" ? id : DEFAULT_USER_ID);
 
 export async function fetchProfile(
   userId: string = DEFAULT_USER_ID,
