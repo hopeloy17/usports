@@ -301,3 +301,33 @@ export async function updateProfile(userId: string, updates: Record<string, any>
 
   return data;
 }
+
+// The columns written when a student's profile row is first created at sign-in
+export type NewUserRow = {
+  id: string;
+  name: string;
+  school_email: string;
+  email_verified: boolean;
+  email_verified_at: string;
+};
+
+/**
+ * Creates a student's row in the users table if it doesn't exist yet, and does nothing if it does.
+ * Called on every sign-in, so each account gets a profile the first time it signs in.
+ *
+ * @param {NewUserRow} row - The new row: the account's id (same as Supabase Auth), a starting
+ *   name, the school email, and when the email was confirmed.
+ * @returns {Promise<void>} Resolves once the row exists (new or already there).
+ * @throws {Error} If the database refuses the row (e.g. a constraint) or the query fails.
+ */
+export async function ensureUserRow(row: NewUserRow): Promise<void> {
+  // ignoreDuplicates makes this INSERT ... ON CONFLICT (id) DO NOTHING: an existing row
+  // (with a name or bio the student has edited) is left exactly as it is
+  const { error } = await supabase
+    .from('users')
+    .upsert(row, { onConflict: 'id', ignoreDuplicates: true });
+
+  if (error) {
+    throw new Error(`ensureUserRow failed for user ${row.id}: ${error.message}`);
+  }
+}

@@ -10,6 +10,8 @@
 // - Clear error messages for a non-Calvin email, an already-registered email, and an
 //   account whose email hasn't been verified yet.
 // - A student who hasn't verified their email can't sign in, so they can't use the app.
+// - The first verified sign-in creates the student's profile row (users table), so the app
+//   has a profile to show; nobody else (unverified, wrong password) gets one.
 
 // Fake the Supabase clients so these tests never reach the real project.
 // authClient is the separate client the auth service uses for sign-up and sign-in. It is kept
@@ -27,14 +29,23 @@ jest.mock("../src/db/client", () => ({
   },
 }));
 
+// Fake the users-table function too, so signing in never writes to the real database.
+// (The other routes' database functions aren't listed; these tests never call them.)
+jest.mock("../src/db", () => ({
+  ensureUserRow: jest.fn(),
+}));
+
 import request from "supertest";
 import { app } from "../src/app";
 import { authClient } from "../src/db/client";
+import { ensureUserRow } from "../src/db";
 
 // Loosely typed handles on the fakes, so each test can choose what Supabase "answers"
 // without building Supabase's full User and Session types
 const mockedSignUp = authClient.auth.signUp as jest.Mock;
 const mockedSignIn = authClient.auth.signInWithPassword as jest.Mock;
+// The fake profile-row writer: tests check what it was asked to save, or make it fail
+const mockedEnsureUserRow = jest.mocked(ensureUserRow);
 
 // ---------------------------------------------------------------------------
 // The exact messages the app will show. Written once so every test checks the same wording.
@@ -47,6 +58,7 @@ const WEAK_PASSWORD = "Password is too weak; please choose a longer password";
 const NOT_VERIFIED = "Please verify your email before signing in";
 const BAD_LOGIN = "Invalid email or password";
 const TOO_MANY = "Too many attempts; please wait a few minutes and try again";
+const PASSWORD_TOO_LONG = "Password must be 72 characters or fewer";
 
 // A valid student and their details, reused across tests
 const EMAIL = "jdoe12@calvin.edu";
@@ -139,6 +151,22 @@ const OUTSIDE_ADDRESSES: [string, string][] = [
   ["no @ at all", "jdoe.calvin.edu"],
   ["a space inside the address", "j doe@calvin.edu"],
 ];
+
+// Attack-style or malformed addresses that still end in @calvin.edu. Real Calvin addresses only
+// use letters, digits, and . _ + - before the @ (at most 64 characters), so anything else is
+// refused before Supabase sees it, and can never become a student's starting display name
+const INJECTION_ADDRESSES: [string, string][] = [
+  ["an SQL comment", "admin'--@calvin.edu"],
+  ["an SQL statement without spaces", 'x";drop/**/table/**/users;--@calvin.edu'],
+  ["an HTML script tag", "<script>alert(1)</script>@calvin.edu"],
+  ["a null byte", "jdoe\u0000@calvin.edu"],
+  ["a percent-encoded quote", "jdoe%27@calvin.edu"],
+  ["a backslash", "jdoe\\x@calvin.edu"],
+  ["more than 64 characters before the @", `${"a".repeat(65)}@calvin.edu`],
+];
+
+// A real-looking address using every character Calvin addresses may contain
+const ADDRESS_WITH_EVERY_ALLOWED_CHARACTER = "first.last_2+games-x@calvin.edu";
 
 // Request bodies that are missing the email or password, or have them in the wrong form
 const INCOMPLETE_BODIES: [string, object][] = [
@@ -278,6 +306,57 @@ describe("POST /api/auth/accounts", () => {
     });
   });
 
+  describe("injection-style or oversized input", () => {
+    it.each(INJECTION_ADDRESSES)(
+      "rejects an address with %s with 400 and never calls Supabase",
+      async (_label, email) => {
+        const response = await postSignUp({ email, password: PASSWORD });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({ error: CALVIN_ONLY });
+        expect(mockedSignUp).not.toHaveBeenCalled();
+      },
+    );
+
+    it("still accepts real Calvin address styles (dots, underscores, plus, hyphens, digits)", async () => {
+      mockedSignUp.mockResolvedValue(signUpCreated());
+
+      const response = await postSignUp({ email: ADDRESS_WITH_EVERY_ALLOWED_CHARACTER, password: PASSWORD });
+
+      expect(response.status).toBe(201);
+      expect(mockedSignUp).toHaveBeenCalledWith({
+        email: ADDRESS_WITH_EVERY_ALLOWED_CHARACTER,
+        password: PASSWORD,
+      });
+    });
+
+    it("rejects a password longer than 72 characters with 400 and never calls Supabase", async () => {
+      // Supabase can't store more than 72 bytes of a password, so don't send it a longer one
+      const response = await postSignUp({ email: EMAIL, password: "p".repeat(73) });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: PASSWORD_TOO_LONG });
+      expect(mockedSignUp).not.toHaveBeenCalled();
+    });
+
+    it("measures the password in bytes, so 72 accented letters (144 bytes) are too long", async () => {
+      const response = await postSignUp({ email: EMAIL, password: "é".repeat(72) });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: PASSWORD_TOO_LONG });
+      expect(mockedSignUp).not.toHaveBeenCalled();
+    });
+
+    it("accepts a password of exactly 72 characters", async () => {
+      mockedSignUp.mockResolvedValue(signUpCreated());
+
+      const response = await postSignUp({ email: EMAIL, password: "p".repeat(72) });
+
+      expect(response.status).toBe(201);
+      expect(mockedSignUp).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("already-registered email", () => {
     it("returns 409 when Supabase hides an existing account behind an empty identities list", async () => {
       mockedSignUp.mockResolvedValue(signUpAlreadyRegistered());
@@ -380,6 +459,23 @@ describe("POST /api/auth/sessions", () => {
       expect(mockedSignIn).toHaveBeenCalledTimes(1);
       expect(mockedSignIn).toHaveBeenCalledWith({ email: EMAIL, password: PASSWORD });
     });
+
+    it("creates the student's profile on sign-in, so the app has a profile to show", async () => {
+      mockedSignIn.mockResolvedValue(signInVerified());
+
+      await postSignIn({ email: EMAIL, password: PASSWORD });
+
+      // New accounts have no users-table row until now. The name starts as the part of the
+      // email before the @; the student can change it later on their profile
+      expect(mockedEnsureUserRow).toHaveBeenCalledTimes(1);
+      expect(mockedEnsureUserRow).toHaveBeenCalledWith({
+        id: USER_ID,
+        name: "jdoe12",
+        school_email: EMAIL,
+        email_verified: true,
+        email_verified_at: "2026-11-13T12:00:00Z",
+      });
+    });
   });
 
   describe("blocked unverified user", () => {
@@ -419,6 +515,53 @@ describe("POST /api/auth/sessions", () => {
         expect(response.body).toEqual({ error: NOT_VERIFIED });
       },
     );
+
+    it("doesn't create a profile for a user whose email isn't confirmed", async () => {
+      // The hardest case: Supabase signs them in anyway, so the confirmation check has to
+      // happen BEFORE the profile row is written
+      const answer = signInVerified();
+      answer.data.user.email_confirmed_at = null as unknown as string;
+      mockedSignIn.mockResolvedValue(answer);
+
+      await postSignIn({ email: EMAIL, password: PASSWORD });
+
+      expect(mockedEnsureUserRow).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("injection-style or oversized input", () => {
+    it.each(INJECTION_ADDRESSES)(
+      "rejects an address with %s with 400, never calls Supabase, and writes no profile",
+      async (_label, email) => {
+        const response = await postSignIn({ email, password: PASSWORD });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({ error: CALVIN_ONLY });
+        expect(mockedSignIn).not.toHaveBeenCalled();
+        expect(mockedEnsureUserRow).not.toHaveBeenCalled();
+      },
+    );
+
+    it("still accepts real Calvin address styles (dots, underscores, plus, hyphens, digits)", async () => {
+      mockedSignIn.mockResolvedValue(signInVerified());
+
+      const response = await postSignIn({ email: ADDRESS_WITH_EVERY_ALLOWED_CHARACTER, password: PASSWORD });
+
+      expect(response.status).toBe(200);
+      expect(mockedSignIn).toHaveBeenCalledWith({
+        email: ADDRESS_WITH_EVERY_ALLOWED_CHARACTER,
+        password: PASSWORD,
+      });
+    });
+
+    it("rejects a password longer than 72 characters with 400 and never calls Supabase", async () => {
+      // No account can have a longer password, so there's nothing to ask Supabase
+      const response = await postSignIn({ email: EMAIL, password: "p".repeat(73) });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: PASSWORD_TOO_LONG });
+      expect(mockedSignIn).not.toHaveBeenCalled();
+    });
   });
 
   describe("wrong email or password", () => {
@@ -432,6 +575,16 @@ describe("POST /api/auth/sessions", () => {
 
       expect(response.status).toBe(401);
       expect(response.body).toEqual({ error: BAD_LOGIN });
+    });
+
+    it("doesn't create a profile when the email or password is wrong", async () => {
+      mockedSignIn.mockResolvedValue(
+        supabaseError("invalid_credentials", "Invalid login credentials"),
+      );
+
+      await postSignIn({ email: EMAIL, password: "wrong-password" });
+
+      expect(mockedEnsureUserRow).not.toHaveBeenCalled();
     });
   });
 
@@ -501,6 +654,19 @@ describe("POST /api/auth/sessions", () => {
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: "Internal server error" });
+    });
+
+    it("returns 500 and no token when the student's profile can't be saved", async () => {
+      // Signing in without a profile would leave the app with nothing to show, so fail clearly
+      silenceErrorLog();
+      mockedSignIn.mockResolvedValue(signInVerified());
+      mockedEnsureUserRow.mockRejectedValue(new Error("ensureUserRow failed: database down"));
+
+      const response = await postSignIn({ email: EMAIL, password: PASSWORD });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ error: "Internal server error" });
+      expect(response.body).not.toHaveProperty("accessToken");
     });
   });
 });

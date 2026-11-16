@@ -7,6 +7,7 @@
 // Supabase does the rest: it stores the password securely, sends the confirmation email,
 // and refuses to sign in anyone who hasn't clicked the link in that email yet.
 import { authClient } from "../db/client";
+import { ensureUserRow } from "../db";
 import {
   ConflictError,
   ForbiddenError,
@@ -26,12 +27,21 @@ const WEAK_PASSWORD = "Password is too weak; please choose a longer password";
 const NOT_VERIFIED = "Please verify your email before signing in";
 const BAD_LOGIN = "Invalid email or password";
 const TOO_MANY = "Too many attempts; please wait a few minutes and try again";
+const PASSWORD_TOO_LONG = "Password must be 72 characters or fewer";
 
-// A Calvin address: one or more characters that are neither spaces nor "@", then exactly
-// "@calvin.edu" at the very end. Anchored at both ends (^ and $), so look-alikes such as
-// "x@notcalvin.edu", "x@mail.calvin.edu", "x@calvin.edu.evil.com" and "x@calvin.edu@gmail.com"
-// don't match. Applied after the email is trimmed and lowercased.
-const CALVIN_EMAIL_PATTERN = /^[^\s@]+@calvin\.edu$/;
+// A Calvin address: 1 to 64 of the characters real Calvin addresses use (lowercase letters,
+// digits, and . _ + -), then exactly "@calvin.edu" at the very end. Applied after the email
+// is trimmed and lowercased.
+// - Anchored at both ends (^ and $), so look-alikes such as "x@notcalvin.edu",
+//   "x@mail.calvin.edu", "x@calvin.edu.evil.com" and "x@calvin.edu@gmail.com" don't match.
+// - Only those characters before the @, so quotes, semicolons, <tags>, backslashes, %-codes
+//   and invisible characters (like null bytes) are refused before Supabase ever sees them.
+//   This matters because the part before the @ becomes a new student's starting display name.
+const CALVIN_EMAIL_PATTERN = /^[a-z0-9._+-]{1,64}@calvin\.edu$/;
+
+// Supabase stores passwords with bcrypt, which can only use the first 72 bytes. Longer
+// passwords are refused up front with a clear message instead of failing inside Supabase.
+const MAX_PASSWORD_BYTES = 72;
 
 // Supabase error codes that mean "an account with this email already exists"
 // (Supabase only returns these when email confirmations are off; see signUpStudent)
@@ -149,6 +159,17 @@ export async function signInStudent(input: unknown): Promise<SignInResult> {
     throw new ForbiddenError(NOT_VERIFIED);
   }
 
+  // First sign-in: create the student's profile row (users table), which the rest of the app
+  // reads. Does nothing if the row already exists. If it fails, the error handler answers
+  // 500 and no token is handed out, since the app would have no profile to show
+  await ensureUserRow({
+    id: data.user.id,
+    name: email.split("@")[0], // a starting name; the student can change it on their profile
+    school_email: email,
+    email_verified: true,
+    email_verified_at: data.user.email_confirmed_at,
+  });
+
   return { userId: data.user.id, accessToken: data.session.access_token };
 }
 
@@ -185,6 +206,12 @@ function readCredentials(input: unknown): Credentials {
 
   if (!CALVIN_EMAIL_PATTERN.test(normalizedEmail)) {
     throw new ValidationError(CALVIN_ONLY);
+  }
+
+  // Measured in bytes (UTF-8), the way Supabase measures it: plain letters and digits are
+  // 1 byte each, accented letters 2, emoji 4
+  if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
+    throw new ValidationError(PASSWORD_TOO_LONG);
   }
 
   return { email: normalizedEmail, password };
