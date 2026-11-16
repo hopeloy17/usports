@@ -1,4 +1,4 @@
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useEvents } from "../../context/EventContext";
@@ -11,7 +11,7 @@ import GameCard from "../../components/GameCard";
 import { colors, commonStyles } from "../../styles/common";
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, error: profileError } = useProfile();
+  const { profile, updateProfile, error: profileError, signOut } = useProfile();
   const { events } = useEvents();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -49,6 +49,13 @@ export default function ProfileScreen() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Forgets this student on this device, then goes to the sign-in screen
+  // (replace, not push, so the back button can't return to the signed-out profile)
+  const handleSignOut = () => {
+    signOut();
+    router.replace("/sign-in");
   };
 
   return (
@@ -167,8 +174,9 @@ export default function ProfileScreen() {
         <Text style={[commonStyles.sectionTitle, styles.sectionTitle]}>My Games</Text>
         {myGames.length === 0 ? (
           <View style={[commonStyles.card, styles.card]}>
+            {/* Written as a string so the apostrophe doesn't need escaping in JSX */}
             <Text style={styles.emptyText}>
-              You haven't joined any games yet.
+              {"You haven't joined any games yet."}
             </Text>
             <Link href="/(tabs)" asChild>
               <Pressable>
@@ -184,6 +192,16 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
+
+      { /* Sign out: last on the page, so it's never pressed by accident on the way to something else */ }
+      <Pressable
+        testID="sign-out-button"
+        accessibilityRole="button"
+        style={[commonStyles.button, styles.signOutButton]}
+        onPress={handleSignOut}
+      >
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -258,4 +276,13 @@ const styles = StyleSheet.create({
   gameList: { paddingHorizontal: 16, gap: 12 },
   emptyText: { fontSize: 14, color: colors.textMuted },
   linkText: { fontSize: 14, fontWeight: "600", color: colors.primary },
+  // Outlined like "Edit Profile", with dark red text (about 6.5:1 on white): clearly a
+  // "leave" action without looking like a dangerous one (signing out loses nothing)
+  signOutButton: {
+    marginHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+  },
+  signOutText: { color: colors.errorText, fontSize: 16, fontWeight: "bold" },
 });

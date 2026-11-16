@@ -1,4 +1,4 @@
-import { Request, Router } from "express";
+import { Router } from "express";
 import { getRequestUserId } from "../auth/requestUser";
 import { deleteEvent, updateEvent } from "../repositories/eventRepository";
 import {
@@ -8,21 +8,12 @@ import {
   leaveEvent,
   listEvents,
 } from "../services/eventService";
-import { ValidationError } from "../services/errors";
 import { UpdateEventInput } from "../types/event";
 
 // Routes only translate HTTP into service calls. The rules live in the event service,
 // and errors it throws are turned into status codes by the error handler in app.ts.
 const router = Router();
 
-function readUserId(request: Request): string {
-  const userId = getRequestUserId(request);
-  if (typeof userId !== "string" || userId.trim().length === 0) {
-    throw new ValidationError("User ID is required");
-  }
-
-  return userId;
-}
 
 router.get("/", async (request, response) => {
   response.status(200).json(await listEvents(request.query));
@@ -64,11 +55,13 @@ router.delete("/:id", async (request, response) => {
 });
 
 router.post("/:id/join", async (request, response) => {
-  response.status(200).json(await joinEvent(request.params.id, readUserId(request)));
+  // Who joins comes from their sign-in token (401 if there's no valid one)
+  response.status(200).json(await joinEvent(request.params.id, await getRequestUserId(request)));
 });
 
 router.delete("/:id/join", async (request, response) => {
-  response.status(200).json(await leaveEvent(request.params.id, readUserId(request)));
+  // Who leaves comes from their sign-in token (401 if there's no valid one)
+  response.status(200).json(await leaveEvent(request.params.id, await getRequestUserId(request)));
 });
 
 export default router;

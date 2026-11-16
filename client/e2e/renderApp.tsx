@@ -1,15 +1,21 @@
 import { useState } from "react";
-import { Stack, router } from "expo-router";
+import { Redirect, Stack, router } from "expo-router";
 import { act } from "expo-router/testing-library";
 import { renderRouter } from "expo-router/testing-library";
 import HostScreen from "../src/app/host";
 import EventDetailsScreen from "../src/app/event/[id]";
-import RootIndex from "../src/app/index";
 import FeedScreen from "../src/app/(tabs)/index";
 import ProfileScreen from "../src/app/(tabs)/profile";
 import { EventProvider } from "../src/context/EventContext";
 import { EventFiltersProvider } from "../src/context/EventFiltersContext";
 import { Profile, ProfileProvider } from "../src/context/ProfileContext";
+import { saveSession } from "../src/api/session";
+
+// Signs a test student in the way the real app does (a saved sign-in token), so the app's
+// requests carry "Authorization: Bearer test-token:<id>" and the fake server knows who's asking
+function saveTestSignIn(student: Profile) {
+  saveSession({ userId: student.id, accessToken: `test-token:${encodeURIComponent(student.id)}` });
+}
 
 // Two students the tests can sign in as
 export const taylor: Profile = {
@@ -57,6 +63,7 @@ function makeRootLayout(firstStudent: Profile) {
 // keeps the shared games, so the new student sees what the last one did.
 export async function switchStudent(student: Profile) {
   await act(async () => {
+    saveTestSignIn(student);
     setSignedInStudent?.(student);
     router.replace("/");
   });
@@ -68,12 +75,21 @@ function TestTabsLayout() {
   return <Stack screenOptions={{ headerShown: false }} />;
 }
 
+// Stands in for src/app/index.tsx: an already-signed-in student opens the app on the feed
+function SignedInIndex() {
+  return <Redirect href="/(tabs)" />;
+}
+
 // Renders the whole app signed in as `student`
 export async function renderApp(student: Profile) {
+  saveTestSignIn(student);
   return await renderRouter(
     {
       _layout: makeRootLayout(student),
-      index: RootIndex,
+      // The real entry route sends students to sign in first (tested in
+      // src/app/__tests__/index.test.tsx). These students are already signed in,
+      // so "/" goes straight to the feed instead.
+      index: SignedInIndex,
       "(tabs)/_layout": TestTabsLayout,
       "(tabs)/index": FeedScreen,
       "(tabs)/profile": ProfileScreen,

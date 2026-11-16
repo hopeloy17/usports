@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { SkillLevel } from "../context/ProfileContext";
 import { EventStatus } from "../styles/common";
+import { authHeaders, forgetSignInIfRejected } from "./session";
 
 export type ServerEvent = {
   id: string;
@@ -112,16 +113,21 @@ export async function createEventApi(
   return response.json();
 }
 
+// Joining and leaving say who's asking with the sign-in token (authHeaders), not a user id:
+// the server reads the student from the token, which can't be faked. The `_userId` arguments
+// are kept only so the code that calls these functions doesn't have to change.
 export async function joinEventApi(
   id: string,
-  userId: string,
+  _userId: string,
 ): Promise<ServerEvent> {
   const response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
     method: "POST",
-    headers: { "x-user-id": userId },
+    headers: authHeaders(),
   });
 
   if (!response.ok) {
+    // An expired or invalid sign-in token: forget it, so the app goes back to sign-in
+    forgetSignInIfRejected(response);
     const errorBody = await response.json().catch(() => null);
     throw new Error(
       errorBody?.error ||
@@ -134,14 +140,16 @@ export async function joinEventApi(
 
 export async function leaveEventApi(
   id: string,
-  userId: string,
+  _userId: string,
 ): Promise<ServerEvent> {
   const response = await fetch(`${API_BASE_URL}/api/events/${id}/join`, {
     method: "DELETE",
-    headers: { "x-user-id": userId },
+    headers: authHeaders(),
   });
 
   if (!response.ok) {
+    // An expired or invalid sign-in token: forget it, so the app goes back to sign-in
+    forgetSignInIfRejected(response);
     const errorBody = await response.json().catch(() => null);
     throw new Error(
       errorBody?.error ||

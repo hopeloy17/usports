@@ -49,8 +49,15 @@ export function createFakeApi() {
     const body = init.body ? JSON.parse(String(init.body)) : {};
     const path = new URL(url).pathname;
 
+    // Who's asking comes from the sign-in token, like the real server (server/src/auth/requestUser.ts).
+    // The harness signs test students in with tokens "test-token:<id>" (see renderApp.tsx), and
+    // the profile and join/leave routes refuse a request without one, as the real server does
     const headers = (init.headers as Record<string, string>) || {};
-    const userId = headers["x-user-id"] || "11111111-1111-4111-8111-111111111111";
+    const tokenMatch = /^Bearer test-token:(.+)$/.exec(headers.Authorization ?? "");
+    const signedInId = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+    const needsSignIn = path === "/api/profile" || /\/join$/.test(path);
+    if (needsSignIn && !signedInId) return fail(401, "Please sign in");
+    const userId = signedInId ?? "";
     const participant =
       profileState[userId]?.name ||
       ({ taylor: "Taylor", jordan: "Jordan" }[userId] ?? "Student");

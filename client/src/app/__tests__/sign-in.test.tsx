@@ -1,0 +1,596 @@
+// Tests for the sign-in / create-account screen (src/app/sign-in.tsx).
+//
+// The app opens on this screen. A student either signs in (and goes to the games feed) or
+// creates an account with their calvin.edu email (and is told to check their inbox). Every
+// error the server sends back must be shown word for word, so the student knows what to fix:
+// a non-Calvin email, an already-registered email, or an email that isn't verified yet.
+import { fireEvent, render, waitFor, within } from "@testing-library/react-native";
+import React from "react";
+import { StyleSheet } from "react-native";
+import { router } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import * as authApi from "../../api/auth";
+import type { SignInResult } from "../../api/auth";
+import SignInScreen from "../sign-in";
+
+// Fake the API so these tests never make real network calls; each test picks the answer
+jest.mock("../../api/auth");
+
+// The screen navigates with router.replace; there is no real navigator in these tests,
+// so stub it out (its header is set in app/_layout.tsx, tested in _layout.test.tsx)
+jest.mock("expo-router", () => ({
+  router: { replace: jest.fn() },
+}));
+
+// After signing in, the screen tells the profile context who signed in, so the app shows
+// their profile and games. Fake the context so each test can check what it was told
+const mockSetSignedInUser = jest.fn();
+jest.mock("../../context/ProfileContext", () => ({
+  useProfile: () => ({ setSignedInUser: mockSetSignedInUser }),
+}));
+
+const mockedSignIn = jest.mocked(authApi.signIn);
+const mockedSignUp = jest.mocked(authApi.signUp);
+const mockedReplace = jest.mocked(router.replace);
+
+// A valid student, reused across tests
+const EMAIL = "jdoe12@calvin.edu";
+const PASSWORD = "correct-horse-battery";
+
+// The server's messages (must match server/src/services/authService.ts)
+const CHECK_INBOX = "Check your calvin.edu inbox to confirm your account";
+const CALVIN_ONLY = "Please use your calvin.edu email address";
+const ALREADY_REGISTERED = "An account with this email already exists";
+const TOO_MANY = "Too many attempts; please wait a few minutes and try again";
+const NOT_VERIFIED = "Please verify your email before signing in";
+const BAD_LOGIN = "Invalid email or password";
+
+// The screen's own wording for each mode (heading + one line on why)
+const SIGN_IN_SUBTITLE = "Use your Calvin email to find pickup games.";
+const SIGN_UP_SUBTITLE = "Use your Calvin email. Any sport, any skill level.";
+
+// A request the test finishes by hand, so it can look at the screen while it's still waiting.
+// Note: `await fireEvent.press(...)` waits for the press handler to finish (RNTL v14 returns
+// the handler's promise), so tests that check the "in progress" state press WITHOUT await,
+// look at the screen, then call resolve() and await the press to finish cleanly.
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+// Renders the screen and returns its queries plus helpers that act like a student.
+// topInset = how much of the top edge the phone's status bar / notch covers (0 = nothing, like
+// a web browser). The real app gets this from the SafeAreaProvider that Expo Router adds; tests
+// add their own, because useSafeAreaInsets() throws without one
+async function renderScreen({ topInset = 0 }: { topInset?: number } = {}) {
+  const metrics = {
+    frame: { x: 0, y: 0, width: 390, height: 844 }, // a typical phone screen
+    insets: { top: topInset, right: 0, bottom: 0, left: 0 },
+  };
+  const screen = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <SignInScreen />
+    </SafeAreaProvider>,
+  );
+
+  // Type into the email and password fields, found by their screen-reader labels
+  const typeCredentials = async (email: string, password: string) => {
+    await fireEvent.changeText(screen.getByLabelText("Calvin email"), email);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+  };
+
+  // Press the main button (its text depends on the mode, so use its testID)
+  const pressSubmit = async () => {
+    await fireEvent.press(screen.getByTestId("auth-submit"));
+  };
+
+  // Press the link that switches between "Sign in" and "Create account"
+  const toggleMode = async () => {
+    await fireEvent.press(screen.getByTestId("auth-toggle-mode"));
+  };
+
+  return { ...screen, typeCredentials, pressSubmit, toggleMode };
+}
+
+// Reset the fakes so one test's answers never leak into the next
+beforeEach(() => {
+  jest.resetAllMocks();
+});
+
+// ===========================================================================
+// Sign in (the default mode)
+// ===========================================================================
+describe("SignInScreen: signing in", () => {
+  it("starts in sign-in mode with labelled email and password fields", async () => {
+    const { getByLabelText, getByTestId, getByText } = await renderScreen();
+
+    expect(getByLabelText("Calvin email")).toBeTruthy();
+    expect(getByLabelText("Password")).toBeTruthy();
+    expect(getByText(SIGN_IN_SUBTITLE)).toBeTruthy();
+    expect(getByTestId("auth-submit")).toHaveTextContent("Sign in");
+  });
+
+  it("names the task in a heading screen readers can jump to", async () => {
+    const { getByText } = await renderScreen();
+
+    // The one heading on the screen says what this screen is for
+    expect(getByText("Sign in to USports").props.accessibilityRole).toBe("header");
+  });
+
+  it("reads the logo to screen readers as one item named USports, not letter by letter", async () => {
+    const { getByLabelText, getByText } = await renderScreen();
+
+    // The ball tile + wordmark are one logo: a single screen-reader stop with a real name
+    const logo = getByLabelText("USports");
+    expect(logo.props.accessible).toBe(true); // its children aren't read out separately
+    expect(logo.props.accessibilityRole).toBe("image"); // announced as a logo, like <img alt="USports">
+
+    // Sighted students still see the all-caps wordmark
+    expect(getByText("USPORTS")).toBeTruthy();
+  });
+
+  it("lets a password manager fill in the email and saved password", async () => {
+    const { getByLabelText } = await renderScreen();
+
+    // "username" pairs the email with the password, so autofill offers the saved login
+    expect(getByLabelText("Calvin email").props.autoComplete).toBe("username");
+    expect(getByLabelText("Calvin email").props.textContentType).toBe("username");
+    expect(getByLabelText("Calvin email").props.autoCorrect).toBe(false);
+    // Signing in uses an existing password
+    expect(getByLabelText("Password").props.autoComplete).toBe("current-password");
+    expect(getByLabelText("Password").props.textContentType).toBe("password");
+  });
+
+  it("turns off the browser's own focus outline on both fields (our maroon ring replaces it)", async () => {
+    const { getByLabelText } = await renderScreen();
+
+    // Chrome's default focus outline is `outline-style: auto`, which ignores outline-width,
+    // so the style must switch to "solid" AND set the width to 0 to draw nothing
+    for (const label of ["Calvin email", "Password"]) {
+      const style = StyleSheet.flatten(getByLabelText(label).props.style);
+      expect(style.outlineStyle).toBe("solid");
+      expect(style.outlineWidth).toBe(0);
+    }
+  });
+
+  it("keeps the form to a readable width on wide screens, lined up with the logo", async () => {
+    const { getByTestId } = await renderScreen();
+
+    // On a laptop the window can be 1000px+ wide, and a 1000px-wide email box is hard to scan.
+    // The logo + slogan and the form each sit in a centered column: full width on phones,
+    // never wider than 480px, so the two columns line up with each other
+    for (const id of ["auth-hero-column", "auth-form-column"]) {
+      const style = StyleSheet.flatten(getByTestId(id).props.style);
+      expect(style.width).toBe("100%"); // phones: use the whole width
+      expect(style.maxWidth).toBe(480); // laptops: stop growing here
+      expect(style.alignSelf).toBe("center"); // and sit in the middle
+    }
+
+    // The logo is in the hero column; the fields and the button are in the form column
+    expect(within(getByTestId("auth-hero-column")).getByText("USPORTS")).toBeTruthy();
+    const form = within(getByTestId("auth-form-column"));
+    expect(form.getByLabelText("Calvin email")).toBeTruthy();
+    expect(form.getByLabelText("Password")).toBeTruthy();
+    expect(form.getByTestId("auth-submit")).toBeTruthy();
+  });
+
+  // Phones cover different amounts of the top edge (clock, notch, Dynamic Island). The logo
+  // should always start that strip + the same 24pt gap below it, not one fixed guess for every phone
+  it.each([
+    ["an iPhone with a Dynamic Island", 59, 83], // was 64: the logo nearly touched the island
+    ["an iPhone SE (no notch)", 20, 44], // was 64: lots of empty maroon above the logo
+    ["a web browser (nothing in the way)", 0, 24], // same gap as the hero's 24pt sides
+  ])("starts the logo just below the status bar on %s", async (_phone, topInset, expectedPadding) => {
+    const { getByTestId } = await renderScreen({ topInset });
+
+    expect(StyleSheet.flatten(getByTestId("auth-hero").props.style).paddingTop).toBe(expectedPadding);
+  });
+
+  it("has a Show password button that reveals the password, then hides it again", async () => {
+    const { getByLabelText, getByText } = await renderScreen();
+
+    // Hidden to start, with a button that says what it will do
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(true);
+    expect(getByLabelText("Show password").props.accessibilityRole).toBe("button");
+    expect(getByText("Show")).toBeTruthy();
+
+    // Reveal: the text is readable and the button's label flips to "Hide"
+    await fireEvent.press(getByLabelText("Show password"));
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(false);
+    expect(getByLabelText("Hide password")).toBeTruthy();
+    expect(getByText("Hide")).toBeTruthy();
+
+    // Hide again
+    await fireEvent.press(getByLabelText("Hide password"));
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(true);
+  });
+
+  it("uses the keyboard's next key on email without submitting the form", async () => {
+    const { getByLabelText, typeCredentials } = await renderScreen();
+    const emailField = getByLabelText("Calvin email");
+
+    // "next" (not "return") tells the student the keyboard moves on to the password
+    expect(emailField.props.returnKeyType).toBe("next");
+
+    // Pressing it must not send anything yet
+    await typeCredentials(EMAIL, PASSWORD);
+    await fireEvent(emailField, "submitEditing");
+    expect(mockedSignIn).not.toHaveBeenCalled();
+  });
+
+  it("submits from the keyboard's go key on the password field", async () => {
+    mockedSignIn.mockResolvedValue({ userId: "u1", accessToken: "token" });
+    const { getByLabelText, typeCredentials } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    expect(getByLabelText("Password").props.returnKeyType).toBe("go");
+    await fireEvent(getByLabelText("Password"), "submitEditing");
+
+    expect(mockedSignIn).toHaveBeenCalledWith(EMAIL, PASSWORD);
+  });
+
+  it("hides the password as it is typed", async () => {
+    const { getByLabelText } = await renderScreen();
+
+    expect(getByLabelText("Password").props.secureTextEntry).toBe(true);
+  });
+
+  it("sets the email field up for typing an email address", async () => {
+    const { getByLabelText } = await renderScreen();
+    const emailField = getByLabelText("Calvin email");
+
+    // Email keyboard, and no auto-capitalizing the first letter of the address
+    expect(emailField.props.keyboardType).toBe("email-address");
+    expect(emailField.props.autoCapitalize).toBe("none");
+  });
+
+  it("sends the typed email and password to signIn, not signUp", async () => {
+    mockedSignIn.mockResolvedValue({ userId: "u1", accessToken: "token" });
+    const { typeCredentials, pressSubmit } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    expect(mockedSignIn).toHaveBeenCalledTimes(1);
+    expect(mockedSignIn).toHaveBeenCalledWith(EMAIL, PASSWORD);
+    expect(mockedSignUp).not.toHaveBeenCalled();
+  });
+
+  it("goes to the games feed after a successful sign-in", async () => {
+    mockedSignIn.mockResolvedValue({ userId: "u1", accessToken: "token" });
+    const { typeCredentials, pressSubmit } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    // replace (not push) so the back button can't return to the sign-in screen
+    expect(mockedReplace).toHaveBeenCalledWith("/(tabs)");
+  });
+
+  it("switches the app to the student who signed in, before opening the feed", async () => {
+    mockedSignIn.mockResolvedValue({ userId: "new-student-id", accessToken: "token" });
+    const { typeCredentials, pressSubmit } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    // Their own profile and games from now on, not the demo student's. The whole sign-in
+    // (id + token) is handed over, so it can be remembered on this device
+    expect(mockSetSignedInUser).toHaveBeenCalledTimes(1);
+    expect(mockSetSignedInUser).toHaveBeenCalledWith({ userId: "new-student-id", accessToken: "token" });
+    // Switched first, so the feed never opens showing someone else
+    expect(mockSetSignedInUser.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedReplace.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("doesn't switch students when sign-in fails", async () => {
+    mockedSignIn.mockRejectedValue(new Error(BAD_LOGIN));
+    const { typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await typeCredentials(EMAIL, "wrong-password");
+    await pressSubmit();
+
+    expect(await findByText(BAD_LOGIN)).toBeTruthy();
+    expect(mockSetSignedInUser).not.toHaveBeenCalled();
+  });
+
+  it("blocks an unverified student: shows the verify message and stays on this screen", async () => {
+    mockedSignIn.mockRejectedValue(new Error(NOT_VERIFIED));
+    const { typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    expect(await findByText(NOT_VERIFIED)).toBeTruthy();
+    expect(mockedReplace).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's message for a wrong email or password", async () => {
+    mockedSignIn.mockRejectedValue(new Error(BAD_LOGIN));
+    const { typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await typeCredentials(EMAIL, "wrong-password");
+    await pressSubmit();
+
+    expect(await findByText(BAD_LOGIN)).toBeTruthy();
+    expect(mockedReplace).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's message for a non-Calvin email", async () => {
+    mockedSignIn.mockRejectedValue(new Error(CALVIN_ONLY));
+    const { typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await typeCredentials("jdoe@gmail.com", PASSWORD);
+    await pressSubmit();
+
+    expect(await findByText(CALVIN_ONLY)).toBeTruthy();
+  });
+
+  it("shows the friendly message when the server can't be reached", async () => {
+    mockedSignIn.mockRejectedValue(new Error(authApi.NETWORK_ERROR));
+    const { typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    expect(await findByText(authApi.NETWORK_ERROR)).toBeTruthy();
+  });
+
+  it("marks errors as alerts so screen readers announce them", async () => {
+    mockedSignIn.mockRejectedValue(new Error(NOT_VERIFIED));
+    const { typeCredentials, pressSubmit, findByTestId } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    const error = await findByTestId("auth-error");
+    expect(error.props.accessibilityRole).toBe("alert");
+    // The message is in words, never shown by color alone (docs: NFR-5)
+    expect(error).toHaveTextContent(NOT_VERIFIED);
+  });
+
+  it("shows progress and ignores extra presses while signing in", async () => {
+    const request = deferred<SignInResult>();
+    mockedSignIn.mockReturnValue(request.promise);
+    const { typeCredentials, getByTestId, findByText } = await renderScreen();
+
+    await typeCredentials(EMAIL, PASSWORD);
+    // First press starts the request; don't await it, since it's still in flight
+    const firstPress = fireEvent.press(getByTestId("auth-submit"));
+    expect(await findByText("Signing in...")).toBeTruthy();
+
+    // A second press while waiting must not send a second request
+    await fireEvent.press(getByTestId("auth-submit"));
+    expect(mockedSignIn).toHaveBeenCalledTimes(1);
+
+    // Finish the request so nothing is left running after the test
+    request.resolve({ userId: "u1", accessToken: "token" });
+    await firstPress;
+  });
+
+  it("clears the previous error when the student tries again", async () => {
+    const retry = deferred<SignInResult>();
+    mockedSignIn.mockRejectedValueOnce(new Error(BAD_LOGIN)).mockReturnValueOnce(retry.promise);
+    const { typeCredentials, pressSubmit, findByText, getByTestId, queryByTestId } =
+      await renderScreen();
+
+    // First attempt fails and shows its error
+    await typeCredentials(EMAIL, "wrong-password");
+    await pressSubmit();
+    expect(await findByText(BAD_LOGIN)).toBeTruthy();
+
+    // Second attempt: while it's still running, the old error is already gone
+    await typeCredentials(EMAIL, PASSWORD);
+    const retryPress = fireEvent.press(getByTestId("auth-submit"));
+    await waitFor(() => expect(queryByTestId("auth-error")).toBeNull());
+
+    // Finish the retry so nothing is left running after the test
+    retry.resolve({ userId: "u1", accessToken: "token" });
+    await retryPress;
+  });
+});
+
+// ===========================================================================
+// Create an account
+// ===========================================================================
+describe("SignInScreen: creating an account", () => {
+  it("switches to create-account mode from the link under the form", async () => {
+    const { toggleMode, getByTestId, getByText } = await renderScreen();
+
+    await toggleMode();
+
+    expect(getByText("Create your account")).toBeTruthy();
+    expect(getByText(SIGN_UP_SUBTITLE)).toBeTruthy();
+    expect(getByTestId("auth-submit")).toHaveTextContent("Create account");
+    expect(getByTestId("auth-toggle-mode")).toHaveTextContent("Already have an account? Sign in");
+  });
+
+  it("asks the password manager for a new password when creating an account", async () => {
+    const { toggleMode, getByLabelText } = await renderScreen();
+
+    await toggleMode();
+
+    // "new-password" lets iOS/Android suggest a strong password and save it
+    expect(getByLabelText("Password").props.autoComplete).toBe("new-password");
+    expect(getByLabelText("Password").props.textContentType).toBe("newPassword");
+  });
+
+  it("shows the password rule under the field in create-account mode", async () => {
+    const { toggleMode, getByText, getByLabelText } = await renderScreen();
+
+    await toggleMode();
+
+    // Visible before typing, and it matches the server's rule (supabase/config.toml: minimum_password_length = 6)
+    expect(getByText("Use at least 6 characters.")).toBeTruthy();
+    // Screen readers hear the rule when they reach the password field
+    expect(getByLabelText("Password").props.accessibilityHint).toBe("Use at least 6 characters.");
+  });
+
+  it("hides the password rule again in sign-in mode", async () => {
+    const { toggleMode, queryByText } = await renderScreen();
+
+    // Starts in sign-in mode: no rule (signing in doesn't create a password)
+    expect(queryByText("Use at least 6 characters.")).toBeNull();
+
+    // Create account, then back to sign in: the rule goes away again
+    await toggleMode();
+    await toggleMode();
+    expect(queryByText("Use at least 6 characters.")).toBeNull();
+  });
+
+  it("sends the typed email and password to signUp, not signIn", async () => {
+    mockedSignUp.mockResolvedValue(CHECK_INBOX);
+    const { toggleMode, typeCredentials, pressSubmit } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    expect(mockedSignUp).toHaveBeenCalledTimes(1);
+    expect(mockedSignUp).toHaveBeenCalledWith(EMAIL, PASSWORD);
+    expect(mockedSignIn).not.toHaveBeenCalled();
+  });
+
+  it("after signing up, tells the student to check their inbox", async () => {
+    mockedSignUp.mockResolvedValue(CHECK_INBOX);
+    const { toggleMode, typeCredentials, pressSubmit, findByTestId } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    const notice = await findByTestId("auth-notice");
+    expect(notice).toHaveTextContent(CHECK_INBOX, { exact: false });
+    // Announced to screen readers too
+    expect(notice.props.accessibilityRole).toBe("alert");
+  });
+
+  it("after signing up, switches back to sign-in with the email kept and the password cleared", async () => {
+    mockedSignUp.mockResolvedValue(CHECK_INBOX);
+    const { toggleMode, typeCredentials, pressSubmit, findByTestId, getByLabelText, getByTestId } =
+      await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+    await findByTestId("auth-notice");
+
+    // Ready to sign in as soon as they've clicked the link in the email
+    expect(getByTestId("auth-submit")).toHaveTextContent("Sign in");
+    expect(getByLabelText("Calvin email").props.value).toBe(EMAIL);
+    expect(getByLabelText("Password").props.value).toBe("");
+  });
+
+  it("doesn't switch students after signing up (they haven't signed in yet)", async () => {
+    mockedSignUp.mockResolvedValue(CHECK_INBOX);
+    const { toggleMode, typeCredentials, pressSubmit, findByTestId } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+    await findByTestId("auth-notice");
+
+    expect(mockSetSignedInUser).not.toHaveBeenCalled();
+  });
+
+  it("does not go to the feed after signing up (the email isn't verified yet)", async () => {
+    mockedSignUp.mockResolvedValue(CHECK_INBOX);
+    const { toggleMode, typeCredentials, pressSubmit, findByTestId } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+    await findByTestId("auth-notice");
+
+    expect(mockedReplace).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-Calvin email with the server's message and stays in create-account mode", async () => {
+    mockedSignUp.mockRejectedValue(new Error(CALVIN_ONLY));
+    const { toggleMode, typeCredentials, pressSubmit, findByText, getByTestId } =
+      await renderScreen();
+
+    await toggleMode();
+    await typeCredentials("jdoe@gmail.com", PASSWORD);
+    await pressSubmit();
+
+    expect(await findByText(CALVIN_ONLY)).toBeTruthy();
+    expect(getByTestId("auth-submit")).toHaveTextContent("Create account");
+    expect(mockedReplace).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's message for an already-registered email", async () => {
+    mockedSignUp.mockRejectedValue(new Error(ALREADY_REGISTERED));
+    const { toggleMode, typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    expect(await findByText(ALREADY_REGISTERED)).toBeTruthy();
+  });
+
+  it("shows the server's message when sign-ups are rate-limited", async () => {
+    mockedSignUp.mockRejectedValue(new Error(TOO_MANY));
+    const { toggleMode, typeCredentials, pressSubmit, findByText } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+
+    expect(await findByText(TOO_MANY)).toBeTruthy();
+  });
+
+  it("shows progress and ignores extra presses while creating the account", async () => {
+    const request = deferred<string>();
+    mockedSignUp.mockReturnValue(request.promise);
+    const { toggleMode, typeCredentials, getByTestId, findByText } = await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    // First press starts the request; don't await it, since it's still in flight
+    const firstPress = fireEvent.press(getByTestId("auth-submit"));
+    expect(await findByText("Creating account...")).toBeTruthy();
+
+    // A second press while waiting must not send a second request
+    await fireEvent.press(getByTestId("auth-submit"));
+    expect(mockedSignUp).toHaveBeenCalledTimes(1);
+
+    // Finish the request so nothing is left running after the test
+    request.resolve(CHECK_INBOX);
+    await firstPress;
+  });
+
+  it("clears old errors and notices when switching between modes", async () => {
+    mockedSignUp.mockRejectedValue(new Error(ALREADY_REGISTERED));
+    const { toggleMode, typeCredentials, pressSubmit, findByText, queryByTestId } =
+      await renderScreen();
+
+    await toggleMode();
+    await typeCredentials(EMAIL, PASSWORD);
+    await pressSubmit();
+    expect(await findByText(ALREADY_REGISTERED)).toBeTruthy();
+
+    // Back to sign-in: the sign-up error no longer applies
+    await toggleMode();
+
+    expect(queryByTestId("auth-error")).toBeNull();
+    expect(queryByTestId("auth-notice")).toBeNull();
+  });
+
+  it("switches back to sign-in mode from the same link", async () => {
+    const { toggleMode, getByTestId, getByText } = await renderScreen();
+
+    await toggleMode();
+    await toggleMode();
+
+    expect(getByText("Sign in to USports")).toBeTruthy();
+    expect(getByText(SIGN_IN_SUBTITLE)).toBeTruthy();
+    expect(getByTestId("auth-submit")).toHaveTextContent("Sign in");
+    expect(getByTestId("auth-toggle-mode")).toHaveTextContent("New to USports? Create an account");
+  });
+});

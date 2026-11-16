@@ -1,4 +1,4 @@
-import { getEventRows, getParticipantStatus, updateEventStatus } from "../../src/db";
+import { ensureUserRow, getEventRows, getParticipantStatus, updateEventStatus } from "../../src/db";
 import { supabase } from "../../src/db/client";
 
 jest.mock("../../src/db/client", () => ({
@@ -113,5 +113,45 @@ describe("getEventRows", () => {
     expect(mockedSupabase.from).toHaveBeenCalledWith("events");
     expect(query.update).toHaveBeenCalledWith({ status: "full" });
     expect(query.eq).toHaveBeenCalledWith("id", "event-1");
+  });
+});
+
+// Creates a student's profile row the first time they sign in (called by the auth service)
+describe("ensureUserRow", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // What sign-in asks to save for a brand-new student
+  const NEW_ROW = {
+    id: "user-1",
+    name: "jdoe12",
+    school_email: "jdoe12@calvin.edu",
+    email_verified: true,
+    email_verified_at: "2026-11-13T12:00:00Z",
+  };
+
+  it("inserts the row, or leaves an existing row alone (insert-or-ignore on id)", async () => {
+    const upsert = jest.fn().mockResolvedValue({ data: null, error: null });
+    mockedSupabase.from.mockReturnValue({ upsert } as never);
+
+    await expect(ensureUserRow(NEW_ROW)).resolves.toBeUndefined();
+
+    expect(mockedSupabase.from).toHaveBeenCalledWith("users");
+    // ignoreDuplicates makes this INSERT ... ON CONFLICT (id) DO NOTHING, so a name or bio the
+    // student has already edited is never overwritten by these sign-in defaults
+    expect(upsert).toHaveBeenCalledWith(NEW_ROW, { onConflict: "id", ignoreDuplicates: true });
+  });
+
+  it("throws a clear error when the database refuses the row", async () => {
+    const upsert = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: "duplicate key value violates unique constraint" },
+    });
+    mockedSupabase.from.mockReturnValue({ upsert } as never);
+
+    await expect(ensureUserRow(NEW_ROW)).rejects.toThrow(
+      "ensureUserRow failed for user user-1: duplicate key value violates unique constraint",
+    );
   });
 });

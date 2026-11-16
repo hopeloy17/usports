@@ -5,12 +5,22 @@ import {
   resetFallbackProfile,
   updateProfileApi,
 } from "../profile";
+import { clearSession, loadSession, saveSession } from "../session";
+
+// The signed-in student's sign-in token: the server reads who's asking from it
+const TOKEN = "token-abc";
+
+// What the server says when the token is missing, made up, or expired
+const SIGN_IN_EXPIRED = "Your sign-in has expired. Please sign in again";
 
 describe("profile API client", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
     resetFallbackProfile();
+    // Each test starts signed in
+    clearSession();
+    saveSession({ userId: DEFAULT_USER_ID, accessToken: TOKEN });
   });
 
   afterEach(() => {
@@ -18,7 +28,7 @@ describe("profile API client", () => {
     jest.restoreAllMocks();
   });
 
-  it("fetches the user profile from the server with x-user-id header", async () => {
+  it("fetches the profile, saying who's asking with the sign-in token (no x-user-id)", async () => {
     const mockProfile = {
       id: DEFAULT_USER_ID,
       name: "Taylor Swift",
@@ -38,7 +48,7 @@ describe("profile API client", () => {
     expect(global.fetch).toHaveBeenCalledWith(`${API_BASE_URL}/api/profile`, {
       method: "GET",
       headers: {
-        "x-user-id": DEFAULT_USER_ID,
+        Authorization: `Bearer ${TOKEN}`,
       },
     });
     expect(result).toEqual(mockProfile);
@@ -90,7 +100,7 @@ describe("profile API client", () => {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "x-user-id": DEFAULT_USER_ID,
+        Authorization: `Bearer ${TOKEN}`,
       },
       body: JSON.stringify({
         name: "Jordan K.",
@@ -125,5 +135,30 @@ describe("profile API client", () => {
     await expect(
       updateProfileApi(DEFAULT_USER_ID, { name: "Test" }),
     ).rejects.toThrow("Internal server error");
+  });
+
+  // A rejected (expired or invalid) sign-in token: show the server's message and forget the
+  // sign-in, so the app sends the student back to the sign-in screen
+  function serverRejectsToken() {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({ error: SIGN_IN_EXPIRED }),
+    } as Response);
+  }
+
+  it("forgets the sign-in when the server rejects the token while loading the profile", async () => {
+    serverRejectsToken();
+
+    await expect(fetchProfile(DEFAULT_USER_ID)).rejects.toThrow(SIGN_IN_EXPIRED);
+    expect(loadSession()).toBeNull();
+  });
+
+  it("forgets the sign-in when the server rejects the token while saving the profile", async () => {
+    serverRejectsToken();
+
+    await expect(updateProfileApi(DEFAULT_USER_ID, { name: "Test" })).rejects.toThrow(SIGN_IN_EXPIRED);
+    expect(loadSession()).toBeNull();
   });
 });

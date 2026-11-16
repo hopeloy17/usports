@@ -84,7 +84,9 @@ export default function EventFeedScreen() {
     () => toFilterOptions([...new Set(events.map((event) => event.sport))].sort()),
     [events],
   );
-  const dateOptions = useMemo(getUpcomingDateOptions, []);
+  // Built once per visit. Written as an arrow function because React's compiler (and its lint
+  // rule) needs the function given to useMemo to be written out right here
+  const dateOptions = useMemo(() => getUpcomingDateOptions(), []);
   const filteredEvents = filterEvents(events, filters);
   // Games the student joined that the host has since cancelled
   const cancelledJoinedGames = events.filter(

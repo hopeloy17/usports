@@ -5,6 +5,19 @@ import * as database from "../src/db";
 import { mockEvents } from "../src/data/events";
 import { Event } from "../src/types/event";
 
+// Fake the sign-in token check so these tests don't talk to Supabase. A token
+// "test-token:<id>" counts as a valid sign-in as <id>; any other token is invalid or expired.
+// (These tests use player names as ids, to match the fake games in src/data/events.)
+jest.mock("../src/auth/verifyAccessToken", () => ({
+  verifyAccessToken: async (token: string) =>
+    token.startsWith("test-token:") ? decodeURIComponent(token.slice("test-token:".length)) : null,
+}));
+
+// The Authorization header for a request signed in as `userId`
+function signedInAs(userId: string): string {
+  return `Bearer test-token:${encodeURIComponent(userId)}`;
+}
+
 const validEvent = {
   sport: "Volleyball",
   venue: "Fieldhouse",
@@ -271,7 +284,7 @@ describe("POST /api/events/:id/join", () => {
   it("adds a participant to an event", async () => {
     const response = await request(app)
       .post("/api/events/1/join")
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(7);
@@ -281,25 +294,23 @@ describe("POST /api/events/:id/join", () => {
   it("returns 404 when joining an unknown event", async () => {
     const response = await request(app)
       .post("/api/events/unknown/join")
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Event not found" });
   });
 
-  it("rejects joining without a participant", async () => {
-    const response = await request(app)
-      .post("/api/events/1/join")
-      .set("x-user-id", "");
+  it("rejects joining without signing in", async () => {
+    const response = await request(app).post("/api/events/1/join");
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "User ID is required" });
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Please sign in" });
   });
 
   it("rejects duplicate participants", async () => {
     const response = await request(app)
       .post("/api/events/1/join")
-      .set("x-user-id", "Sarah M.");
+      .set("Authorization", signedInAs("Sarah M."));
 
     expect(response.status).toBe(409);
   });
@@ -311,7 +322,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "Event is full" });
@@ -323,7 +334,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("full");
@@ -337,7 +348,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "Event is cancelled" });
@@ -350,7 +361,7 @@ describe("POST /api/events/:id/join", () => {
 
     const response = await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(2);
@@ -361,7 +372,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("removes a participant from an event", async () => {
     const response = await request(app)
       .delete("/api/events/1/join")
-      .set("x-user-id", "Sarah M.");
+      .set("Authorization", signedInAs("Sarah M."));
 
     expect(response.status).toBe(200);
     expect(response.body.joinedCount).toBe(5);
@@ -374,11 +385,11 @@ describe("DELETE /api/events/:id/join", () => {
       .send({ ...validEvent, minPlayers: 2, maxPlayers: 2 });
     await request(app)
       .post(`/api/events/${created.body.id}/join`)
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     const response = await request(app)
       .delete(`/api/events/${created.body.id}/join`)
-      .set("x-user-id", "Jordan P.");
+      .set("Authorization", signedInAs("Jordan P."));
 
     expect(response.body.status).toBe("open");
   });
@@ -386,7 +397,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("returns 404 when leaving an unknown event", async () => {
     const response = await request(app)
       .delete("/api/events/unknown/join")
-      .set("x-user-id", "Sarah M.");
+      .set("Authorization", signedInAs("Sarah M."));
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Event not found" });
@@ -395,7 +406,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("returns 404 when participant is not in the roster", async () => {
     const response = await request(app)
       .delete("/api/events/1/join")
-      .set("x-user-id", "NonExistentPlayer");
+      .set("Authorization", signedInAs("NonExistentPlayer"));
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Participant not found" });
@@ -404,7 +415,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("rejects when the host attempts to leave the event", async () => {
     const response = await request(app)
       .delete("/api/events/1/join")
-      .set("x-user-id", "host-john");
+      .set("Authorization", signedInAs("host-john"));
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "The host cannot leave the event" });
@@ -413,7 +424,7 @@ describe("DELETE /api/events/:id/join", () => {
   it("no longer accepts the old POST /leave route", async () => {
     const response = await request(app)
       .post("/api/events/1/leave")
-      .set("x-user-id", "Sarah M.");
+      .set("Authorization", signedInAs("Sarah M."));
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Route not found" });

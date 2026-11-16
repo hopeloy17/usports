@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./events";
+import { authHeaders, forgetSignInIfRejected } from "./session";
 
 export const DEFAULT_USER_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -37,20 +38,18 @@ export function resetFallbackProfile(): void {
   };
 }
 
-// The mock profile uses "me" until sign-in exists; the server needs a real user id
-export const resolveUserId = (id?: string) => (id && id !== "me" ? id : DEFAULT_USER_ID);
+// Who's asking is NOT sent as a user id any more: the server reads the student from their
+// sign-in token (authHeaders), which can't be faked. The `_userId` arguments below are kept
+// only so the code that calls these functions doesn't have to change.
 
 export async function fetchProfile(
-  userId: string = DEFAULT_USER_ID,
+  _userId: string = DEFAULT_USER_ID,
 ): Promise<ServerProfile> {
-  const headerId = resolveUserId(userId);
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api/profile`, {
       method: "GET",
-      headers: {
-        "x-user-id": headerId,
-      },
+      headers: authHeaders(),
     });
   } catch (networkError) {
     console.warn(
@@ -60,6 +59,8 @@ export async function fetchProfile(
   }
 
   if (!response.ok) {
+    // An expired or invalid sign-in token: forget it, so the app goes back to sign-in
+    forgetSignInIfRejected(response);
     const errorBody = await response.json().catch(() => null);
     throw new Error(
       errorBody?.error ||
@@ -73,17 +74,16 @@ export async function fetchProfile(
 }
 
 export async function updateProfileApi(
-  userId: string = DEFAULT_USER_ID,
+  _userId: string = DEFAULT_USER_ID,
   updates: UpdateProfileInput,
 ): Promise<ServerProfile> {
-  const headerId = resolveUserId(userId);
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api/profile`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "x-user-id": headerId,
+        ...authHeaders(),
       },
       body: JSON.stringify(updates),
     });
@@ -101,6 +101,8 @@ export async function updateProfileApi(
   }
 
   if (!response.ok) {
+    // An expired or invalid sign-in token: forget it, so the app goes back to sign-in
+    forgetSignInIfRejected(response);
     const errorBody = await response.json().catch(() => null);
     throw new Error(
       errorBody?.error ||
