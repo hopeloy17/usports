@@ -14,6 +14,12 @@ jest.mock("expo-router", () => ({
   },
 }));
 
+// The first test that draws a whole game pays a one-time loading cost: about 1 second on its
+// own, but more than Jest's default 5-second limit when the full suite runs in parallel on a busy
+// laptop (for example with the Expo server running). A longer limit for this file stops those
+// false failures. A test that really hangs still fails, just after 15 seconds instead of 5
+jest.setTimeout(15_000);
+
 const mockServerEvents: eventApi.ServerEvent[] = [
   {
     id: "1",
