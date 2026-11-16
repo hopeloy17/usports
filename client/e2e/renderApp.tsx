@@ -9,6 +9,13 @@ import ProfileScreen from "../src/app/(tabs)/profile";
 import { EventProvider } from "../src/context/EventContext";
 import { EventFiltersProvider } from "../src/context/EventFiltersContext";
 import { Profile, ProfileProvider } from "../src/context/ProfileContext";
+import { saveSession } from "../src/api/session";
+
+// Signs a test student in the way the real app does (a saved sign-in token), so the app's
+// requests carry "Authorization: Bearer test-token:<id>" and the fake server knows who's asking
+function saveTestSignIn(student: Profile) {
+  saveSession({ userId: student.id, accessToken: `test-token:${encodeURIComponent(student.id)}` });
+}
 
 // Two students the tests can sign in as
 export const taylor: Profile = {
@@ -56,6 +63,7 @@ function makeRootLayout(firstStudent: Profile) {
 // keeps the shared games, so the new student sees what the last one did.
 export async function switchStudent(student: Profile) {
   await act(async () => {
+    saveTestSignIn(student);
     setSignedInStudent?.(student);
     router.replace("/");
   });
@@ -74,6 +82,7 @@ function SignedInIndex() {
 
 // Renders the whole app signed in as `student`
 export async function renderApp(student: Profile) {
+  saveTestSignIn(student);
   return await renderRouter(
     {
       _layout: makeRootLayout(student),

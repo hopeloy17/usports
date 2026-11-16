@@ -6,9 +6,19 @@ import {
   joinEventApi,
   leaveEventApi,
 } from "../events";
+import { clearSession, loadSession, saveSession } from "../session";
+
+// The signed-in student's sign-in token: the server reads who joins or leaves from it
+const TOKEN = "token-abc";
 
 describe("events API client", () => {
   const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    // Each test starts signed in
+    clearSession();
+    saveSession({ userId: "11111111-1111-1111-1111-111111111111", accessToken: TOKEN });
+  });
 
   afterEach(() => {
     global.fetch = originalFetch;
@@ -137,7 +147,8 @@ describe("events API client", () => {
       `${API_BASE_URL}/api/events/1/join`,
       expect.objectContaining({
         method: "POST",
-        headers: { "x-user-id": "You" },
+        // Who joins comes from the sign-in token, never from an id the app claims
+        headers: { Authorization: `Bearer ${TOKEN}` },
       }),
     );
     expect(result).toEqual(updatedEvent);
@@ -161,10 +172,26 @@ describe("events API client", () => {
       `${API_BASE_URL}/api/events/1/join`,
       expect.objectContaining({
         method: "DELETE",
-        headers: { "x-user-id": "You" },
+        headers: { Authorization: `Bearer ${TOKEN}` },
       }),
     );
     expect(result).toEqual(updatedEvent);
+  });
+
+  it.each([
+    ["joining", () => joinEventApi("1", "You")],
+    ["leaving", () => leaveEventApi("1", "You")],
+  ])("forgets the sign-in when the server rejects the token while %s", async (_label, call) => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({ error: "Your sign-in has expired. Please sign in again" }),
+    } as Response);
+
+    await expect(call()).rejects.toThrow("Your sign-in has expired. Please sign in again");
+    // The app's sign-in check then sends the student back to the sign-in screen
+    expect(loadSession()).toBeNull();
   });
 
   describe("error handling", () => {
